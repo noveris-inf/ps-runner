@@ -275,7 +275,6 @@ Function Format-RunnerContentAsHtml
         # Generate string content for this section
         $sectionContent = & {
             $notices = New-Object 'System.Collections.Generic.List[string]'
-            $allNotices[$Section.Name] = New-Object 'System.Collections.Generic.List[string]'
 
             # Display section heading
             ("<b>Section: {0}</b><br>" -f $Section.Name)
@@ -297,11 +296,37 @@ Function Format-RunnerContentAsHtml
                     if ($notice.Status -eq [RunnerStatus]::Warning -or $notice.Status -eq [RunnerStatus]::Error -or
                         $notice.Status -eq [RunnerStatus]::InternalError)
                     {
+                        if ($null -eq $allNotices[$Section.Name])
+                        {
+                            $allNotices[$Section.Name] = New-Object 'System.Collections.Generic.List[string]'
+                        }
+
                         $allNotices[$Section.Name].Add($noticeStr) | Out-Null
                     }
 
                     # Alter message to notice string representation
                     $msg = $noticeStr
+                }
+
+                if ([System.Management.Automation.InformationRecord].IsAssignableFrom($_.GetType()))
+                {
+                    $msg = ("INFO: {0}" -f $_.ToString())
+                }
+                elseif ([System.Management.Automation.VerboseRecord].IsAssignableFrom($_.GetType()))
+                {
+                    $msg = ("VERBOSE: {0}" -f $_.ToString())
+                }
+                elseif ([System.Management.Automation.ErrorRecord].IsAssignableFrom($_.GetType()))
+                {
+                    $msg = ("ERROR: {0}" -f $_.ToString())
+                }
+                elseif ([System.Management.Automation.DebugRecord].IsAssignableFrom($_.GetType()))
+                {
+                    $msg = ("DEBUG: {1}" -f $_.ToString())
+                }
+                elseif ([System.Management.Automation.WarningRecord].IsAssignableFrom($_.GetType()))
+                {
+                    $msg = ("WARNING: {1}" -f $_.ToString())
                 }
 
                 if ([RunnerFormatTable].IsAssignableFrom($msg.GetType()))
