@@ -6,4 +6,5 @@ Set-StrictMode -Version 2
 $InformationPreference = "Continue"
 $ErrorActionPreference = "Continue"
 
-Import-Module Noveris.Report
+Import-Module Noveris.Runner
+

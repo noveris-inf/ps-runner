@@ -65,14 +65,14 @@ if (![string]::IsNullOrEmpty($Env:DOCKER_TAGS))
 Write-Information "Docker Tags:"
 $dockerTags | ConvertTo-Json
 
-$dockerImageName = "noverisinf/reportrunner"
+$dockerImageName = "noverisinf/runner"
 
 ########
 # Build stage
 Invoke-BuildStage -Name "Build" -Filters $Stages -Script {
     # Template PowerShell module definition
-    Write-Information "Templating Noveris.ReportRunner.psd1"
-    Format-TemplateFile -Template source/Noveris.ReportRunner.psd1.tpl -Target source/Noveris.ReportRunner/Noveris.ReportRunner.psd1 -Content @{
+    Write-Information "Templating Noveris.Runner.psd1"
+    Format-TemplateFile -Template source/Noveris.Runner.psd1.tpl -Target source/Noveris.Runner/Noveris.Runner.psd1 -Content @{
         __FULLVERSION__ = $version.PlainVersion
     }
 
@@ -82,15 +82,15 @@ Invoke-BuildStage -Name "Build" -Filters $Stages -Script {
 
     # Install any dependencies for the module manifest
     Write-Information "Installing required dependencies from manifest"
-    Install-PSModuleFromManifest -ManifestPath source/Noveris.ReportRunner/Noveris.ReportRunner.psd1
+    Install-PSModuleFromManifest -ManifestPath source/Noveris.Runner/Noveris.Runner.psd1
 
     # Test the module manifest
     Write-Information "Testing module manifest"
-    Test-ModuleManifest source/Noveris.ReportRunner/Noveris.ReportRunner.psd1
+    Test-ModuleManifest source/Noveris.Runner/Noveris.Runner.psd1
 
     # Import modules as test
     Write-Information "Importing module"
-    Import-Module ./source/Noveris.ReportRunner/Noveris.ReportRunner.psm1
+    Import-Module ./source/Noveris.Runner/Noveris.Runner.psm1
 
     # Docker build
     Write-Information ("Building for {0}" -f $dockerImageName)
@@ -100,7 +100,7 @@ Invoke-BuildStage -Name "Build" -Filters $Stages -Script {
 
 Invoke-BuildStage -Name "Release" -Filters $Stages -Script {
     $owner = "noveris-inf"
-    $repo = "ps-reportrunner"
+    $repo = "ps-runner"
 
     $releaseParams = @{
         Owner = $owner
@@ -123,7 +123,7 @@ Invoke-BuildStage -Name "Release" -Filters $Stages -Script {
 Invoke-BuildStage -Name "Publish" -Filters $Stages -Script {
     # Publish module
     Write-Information "Publishing module"
-    Publish-Module -Path ./source/Noveris.ReportRunner -NuGetApiKey $Env:NUGET_API_KEY
+    Publish-Module -Path ./source/Noveris.Runner -NuGetApiKey $Env:NUGET_API_KEY
 }
 
 Invoke-BuildStage -Name "Push" -Filters $Stages -Script {

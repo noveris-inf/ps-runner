@@ -1,8 +1,8 @@
-# Module manifest for Noveris.Report
+# Module manifest for Noveris.Runner
 
 @{
     # Script module or binary module file associated with this manifest.
-    RootModule = 'Noveris.Report.psm1'
+    RootModule = 'Noveris.Runner.psm1'
 
     # Version number of this module.
     ModuleVersion = '__FULLVERSION__'
@@ -13,7 +13,7 @@
     )
 
     # ID used to uniquely identify this module
-    GUID = '5baaf29a-2737-44fd-9f75-a0388cfea166'
+    GUID = '7f884ba3-a66d-459d-8fe9-c293903ed82b'
 
     # Author of this module
     Author = 'Noveris Pty Ltd'
@@ -25,7 +25,7 @@
     Copyright = '(c) 2021 Noveris Pty Ltd. All rights reserved.'
 
     # Description of the functionality provided by this module
-    Description = 'Report Assistant'
+    Description = 'Runner'
 
     # Minimum version of the Windows PowerShell engine required by this module
     PowerShellVersion = '6.0'
@@ -64,7 +64,7 @@
 
     # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
     NestedModules = @(
-        'Noveris.Report.psm1'
+        'Noveris.Runner.psm1'
     )
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
@@ -86,7 +86,7 @@
 
     # List of all modules packaged with this module
     #ModuleList = @(
-    #    'Noveris.Report.psm1'
+    #    'Noveris.Runner.psm1'
     #)
 
     # List of all files packaged with this module
@@ -99,14 +99,14 @@
 
             # Tags applied to this module. These help with module discovery in online galleries.
             Tags = @(
-                'Report'
+                'Runner'
             )
 
             # A URL to the license for this module.
-            LicenseUri = 'https://github.com/noveris-inf/ps-report/blob/main/LICENSE'
+            LicenseUri = 'https://github.com/noveris-inf/ps-runner/blob/main/LICENSE'
 
             # A URL to the main website for this project.
-            ProjectUri = 'https://github.com/noveris-inf/ps-report/'
+            ProjectUri = 'https://github.com/noveris-inf/ps-runner/'
 
             # A URL to an icon representing this module.
             # IconUri = ''
