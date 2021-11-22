@@ -84,7 +84,8 @@ Class RunnerNotice
 #>
 Function New-RunnerNotice
 {
-    [CmdletBinding(SupportsShouldProcess)]
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    [CmdletBinding()]
     param(
         [Parameter(mandatory=$true)]
         [ValidateNotNullOrEmpty()]
@@ -97,11 +98,6 @@ Function New-RunnerNotice
 
     process
     {
-        if (!$PSCmdlet.ShouldProcess("return"))
-        {
-            return
-        }
-
         $notice = New-Object RunnerNotice -ArgumentList $Status, $Description
 
         $notice
@@ -112,6 +108,8 @@ Function New-RunnerNotice
 #>
 Function New-RunnerFormatTable
 {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    [CmdletBinding()]
     param(
         [Parameter(mandatory=$true)]
         [ValidateNotNull()]
@@ -131,6 +129,7 @@ Function New-RunnerFormatTable
 #>
 Function New-RunnerContext
 {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
     [OutputType('RunnerContext')]
     param(
@@ -219,7 +218,9 @@ Function Invoke-RunnerContext
 #>
 Function Format-RunnerContentAsHtml
 {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '')]
     [CmdletBinding()]
+    [OutputType([System.String])]
     param(
         [Parameter(Mandatory=$true,ValueFromPipeline)]
         [ValidateNotNull()]
@@ -311,7 +312,10 @@ Function Format-RunnerContentAsHtml
                 if ([string].IsAssignableFrom($msg.GetType()))
                 {
                     $msg += "<br>"
-                    $msg = [System.Web.HttpUtility]::HtmlDecode($msg)
+                    if ($DecodeHtml)
+                    {
+                        $msg = [System.Web.HttpUtility]::HtmlDecode($msg)
+                    }
                 }
 
                 # Pass message on in the pipeline
@@ -355,7 +359,7 @@ Function Format-RunnerContentAsHtml
         "</ul><br>"
 
         # Display all section content
-        $allSectionContent
+        $allSectionContent | ForEach-Object { $_ }
 
         # Wrap up HTML
         "</body></html>"
