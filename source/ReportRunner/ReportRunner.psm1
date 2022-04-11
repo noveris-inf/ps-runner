@@ -7,14 +7,14 @@ $ErrorActionPreference = "Stop"
 $InformationPreference = "Continue"
 Set-StrictMode -Version 2
 
-Class RunnerSection
+Class ReportRunnerSection
 {
     [string]$Name
     [string]$Description
     [ScriptBlock]$Script
     $Data
 
-    RunnerSection([string]$name, [string]$description, [ScriptBlock]$script, [PSObject]$data)
+    ReportRunnerSection([string]$name, [string]$description, [ScriptBlock]$script, [PSObject]$data)
     {
         $this.Name = $name
         $this.Description = $description
@@ -23,13 +23,13 @@ Class RunnerSection
     }
 }
 
-class RunnerSectionContent
+class ReportRunnerSectionContent
 {
     [string]$Name
     [string]$Description
     [System.Collections.ArrayList]$Content
 
-    RunnerSectionContent([string]$Name, [string]$Description)
+    ReportRunnerSectionContent([string]$Name, [string]$Description)
     {
         $this.Name = $name
         $this.Description = $description
@@ -37,22 +37,22 @@ class RunnerSectionContent
     }
 }
 
-Class RunnerFormatTable
+Class ReportRunnerFormatTable
 {
     $Content
 }
 
-Class RunnerContext
+Class ReportRunnerContext
 {
-    [System.Collections.Generic.List[RunnerSection]]$Entries
+    [System.Collections.Generic.List[ReportRunnerSection]]$Entries
 
-    RunnerContext()
+    ReportRunnerContext()
     {
-        $this.Entries = New-Object 'System.Collections.Generic.List[RunnerSection]'
+        $this.Entries = New-Object 'System.Collections.Generic.List[ReportRunnerSection]'
     }
 }
 
-enum RunnerStatus
+enum ReportRunnerStatus
 {
     None = 0
     Info
@@ -63,12 +63,12 @@ enum RunnerStatus
 
 <#
 #>
-Class RunnerNotice
+Class ReportRunnerNotice
 {
-    [RunnerStatus]$Status
+    [ReportRunnerStatus]$Status
     [string]$Description
 
-    RunnerNotice([RunnerStatus]$status, [string]$description)
+    ReportRunnerNotice([ReportRunnerStatus]$status, [string]$description)
     {
         $this.Status = $status
         $this.Description = $description
@@ -82,7 +82,7 @@ Class RunnerNotice
 
 <#
 #>
-Function New-RunnerNotice
+Function New-ReportRunnerNotice
 {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
@@ -93,12 +93,12 @@ Function New-RunnerNotice
 
         [Parameter(mandatory=$false)]
         [ValidateNotNull()]
-        [RunnerStatus]$Status = [RunnerStatus]::None
+        [ReportRunnerStatus]$Status = [ReportRunnerStatus]::None
     )
 
     process
     {
-        $notice = New-Object RunnerNotice -ArgumentList $Status, $Description
+        $notice = New-Object ReportRunnerNotice -ArgumentList $Status, $Description
 
         $notice
     }
@@ -106,7 +106,7 @@ Function New-RunnerNotice
 
 <#
 #>
-Function New-RunnerFormatTable
+Function New-ReportRunnerFormatTable
 {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
@@ -118,7 +118,7 @@ Function New-RunnerFormatTable
 
     process
     {
-        $format = New-Object 'RunnerFormatTable'
+        $format = New-Object 'ReportRunnerFormatTable'
         $format.Content = $Content
 
         $format
@@ -127,17 +127,17 @@ Function New-RunnerFormatTable
 
 <#
 #>
-Function New-RunnerContext
+Function New-ReportRunnerContext
 {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
-    [OutputType('RunnerContext')]
+    [OutputType('ReportRunnerContext')]
     param(
     )
 
     process
     {
-        $obj = New-Object RunnerContext
+        $obj = New-Object ReportRunnerContext
 
         $obj
     }
@@ -145,13 +145,13 @@ Function New-RunnerContext
 
 <#
 #>
-Function Add-RunnerContextSection
+Function Add-ReportRunnerContextSection
 {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true,ValueFromPipeline)]
         [ValidateNotNull()]
-        [RunnerContext]$Context,
+        [ReportRunnerContext]$Context,
 
         [Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
@@ -174,20 +174,20 @@ Function Add-RunnerContextSection
     process
     {
         # Add the script to the list of scripts to process
-        $entry = New-Object 'RunnerSection' -ArgumentList $Name, $Description, $Script, $Data
+        $entry = New-Object 'ReportRunnerSection' -ArgumentList $Name, $Description, $Script, $Data
         $Context.Entries.Add($entry) | Out-Null
     }
 }
 
 <#
 #>
-Function Invoke-RunnerContext
+Function Invoke-ReportRunnerContext
 {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
         [ValidateNotNull()]
-        [RunnerContext]$Context
+        [ReportRunnerContext]$Context
     )
 
     process
@@ -196,14 +196,14 @@ Function Invoke-RunnerContext
             $entry = $_
 
             # Output a section format object
-            $content = New-Object 'RunnerSectionContent' -ArgumentList $entry.Name, $entry.Description
+            $content = New-Object 'ReportRunnerSectionContent' -ArgumentList $entry.Name, $entry.Description
 
             Invoke-Command -NoNewScope {
                 # Run the script block
                 try {
                     ForEach-Object -InputObject $entry.Data, -Process $entry.Script
                 } catch {
-                    New-RunnerNotice -Status InternalError -Description "Error running script: $_"
+                    New-ReportRunnerNotice -Status InternalError -Description "Error running script: $_"
                 }
             } *>&1 | ForEach-Object {
                 $content.Content.Add($_) | Out-Null
@@ -216,7 +216,7 @@ Function Invoke-RunnerContext
 
 <#
 #>
-Function Format-RunnerContentAsHtml
+Function Format-ReportRunnerContentAsHtml
 {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '')]
     [CmdletBinding()]
@@ -224,7 +224,7 @@ Function Format-RunnerContentAsHtml
     param(
         [Parameter(Mandatory=$true,ValueFromPipeline)]
         [ValidateNotNull()]
-        [RunnerSectionContent]$Section,
+        [ReportRunnerSectionContent]$Section,
 
         [Parameter(Mandatory=$false)]
         [AllowEmptyString()]
@@ -286,15 +286,15 @@ Function Format-RunnerContentAsHtml
                 $msg = $_
 
                 # Check if it is a string or status object
-                if ([RunnerNotice].IsAssignableFrom($msg.GetType()))
+                if ([ReportRunnerNotice].IsAssignableFrom($msg.GetType()))
                 {
-                    [RunnerNotice]$notice = $_
+                    [ReportRunnerNotice]$notice = $_
                     $noticeStr = $notice.ToString()
                     $notices.Add($noticeStr) | Out-Null
 
                     # Only add Notices that are issues to the all notices list
-                    if ($notice.Status -eq [RunnerStatus]::Warning -or $notice.Status -eq [RunnerStatus]::Error -or
-                        $notice.Status -eq [RunnerStatus]::InternalError)
+                    if ($notice.Status -eq [ReportRunnerStatus]::Warning -or $notice.Status -eq [ReportRunnerStatus]::Error -or
+                        $notice.Status -eq [ReportRunnerStatus]::InternalError)
                     {
                         if ($null -eq $allNotices[$Section.Name])
                         {
@@ -329,7 +329,7 @@ Function Format-RunnerContentAsHtml
                     $msg = ("WARNING: {1}" -f $_.ToString())
                 }
 
-                if ([RunnerFormatTable].IsAssignableFrom($msg.GetType()))
+                if ([ReportRunnerFormatTable].IsAssignableFrom($msg.GetType()))
                 {
                     $msg = $msg.Content | ConvertTo-Html -As Table -Fragment
                 }

@@ -1,34 +1,35 @@
-# Module manifest for Noveris.Runner
+# Module manifest for ReportRunner
 
 @{
     # Script module or binary module file associated with this manifest.
-    RootModule = 'Noveris.Runner.psm1'
+    RootModule = 'ReportRunner.psm1'
 
     # Version number of this module.
     ModuleVersion = '__FULLVERSION__'
 
     # Supported PSEditions
     CompatiblePSEditions = @(
-        'Core'
+        'Core',
+        'Desktop'
     )
 
     # ID used to uniquely identify this module
-    GUID = '7f884ba3-a66d-459d-8fe9-c293903ed82b'
+    GUID = '2a0a7c7f-dd0d-4630-aa6e-0a01ef1e1157'
 
     # Author of this module
-    Author = 'Noveris Pty Ltd'
+    Author = 'Jesse Reichman'
 
     # Company or vendor of this module
-    CompanyName = 'Noveris Pty Ltd'
+    CompanyName = 'ArchMachina'
 
     # Copyright statement for this module
-    Copyright = '(c) 2021 Noveris Pty Ltd. All rights reserved.'
+    Copyright = '(c) 2022 Jesse Reichman. All rights reserved.'
 
     # Description of the functionality provided by this module
-    Description = 'Runner'
+    Description = 'ReportRunner'
 
     # Minimum version of the Windows PowerShell engine required by this module
-    PowerShellVersion = '6.0'
+    PowerShellVersion = '5.1'
 
     # Name of the Windows PowerShell host required by this module
     # PowerShellHostName = ''
@@ -64,17 +65,17 @@
 
     # Modules to import as nested modules of the module specified in RootModule/ModuleToProcess
     NestedModules = @(
-        'Noveris.Runner.psm1'
+        'ReportRunner.psm1'
     )
 
     # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
     FunctionsToExport = @(
-        'New-RunnerNotice',
-        'New-RunnerFormatTable',
-        'New-RunnerContext',
-        'Add-RunnerContextSection',
-        'Invoke-RunnerContext',
-        'Format-RunnerContentAsHtml'
+        'New-ReportRunnerNotice',
+        'New-ReportRunnerFormatTable',
+        'New-ReportRunnerContext',
+        'Add-ReportRunnerContextSection',
+        'Invoke-ReportRunnerContext',
+        'Format-ReportRunnerContentAsHtml'
     )
 
     # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
@@ -91,7 +92,7 @@
 
     # List of all modules packaged with this module
     #ModuleList = @(
-    #    'Noveris.Runner.psm1'
+    #    'ReportRunner.psm1'
     #)
 
     # List of all files packaged with this module
@@ -104,14 +105,14 @@
 
             # Tags applied to this module. These help with module discovery in online galleries.
             Tags = @(
-                'Runner'
+                'ReportRunner'
             )
 
             # A URL to the license for this module.
-            LicenseUri = 'https://github.com/noveris-inf/ps-runner/blob/main/LICENSE'
+            LicenseUri = 'https://github.com/archmachina/ps-reportrunner/blob/main/LICENSE'
 
             # A URL to the main website for this project.
-            ProjectUri = 'https://github.com/noveris-inf/ps-runner/'
+            ProjectUri = 'https://github.com/archmachina/ps-reportrunner/'
 
             # A URL to an icon representing this module.
             # IconUri = ''
