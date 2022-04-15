@@ -7,18 +7,26 @@ $ErrorActionPreference = "Stop"
 $InformationPreference = "Continue"
 Set-StrictMode -Version 2
 
+########
+# Add types
+Add-Type -AssemblyName 'System.Web'
+
+$Script:Definitions = New-Object 'System.Collections.Generic.Dictionary[string, ScriptBlock]'
+
 Class ReportRunnerSection
 {
     [string]$Name
     [string]$Description
-    [ScriptBlock]$Script
+    [ScriptBlock[]]$Scripts
+    [string[]]$LibraryMatches
     $Data
 
-    ReportRunnerSection([string]$name, [string]$description, [ScriptBlock]$script, [PSObject]$data)
+    ReportRunnerSection([string]$name, [string]$description, [ScriptBlock[]]$scripts, [string[]]$libraryMatches, [PSObject]$data)
     {
         $this.Name = $name
         $this.Description = $description
-        $this.Script = $script
+        $this.Scripts = $scripts
+        $this.LibraryMatches = $libraryMatches
         $this.Data = $data
     }
 }
@@ -145,6 +153,27 @@ Function New-ReportRunnerContext
 
 <#
 #>
+Function Add-ReportRunnerDefinition
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNull()]
+        [ScriptBlock]$Script
+    )
+
+    process
+    {
+        $script:Definitions[$Name] = $Script
+    }
+}
+
+<#
+#>
 Function Add-ReportRunnerContextSection
 {
     [CmdletBinding()]
@@ -162,9 +191,13 @@ Function Add-ReportRunnerContextSection
         [AllowEmptyString()]
         [string]$Description = "",
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$false)]
         [ValidateNotNull()]
-        [ScriptBlock]$Script,
+        [ScriptBlock[]]$Scripts = [ScriptBlock[]]@(),
+
+        [Parameter(Mandatory=$false)]
+        [ValidateNotNull()]
+        [string[]]$LibraryMatches = [string[]]@(),
 
         [Parameter(Mandatory=$false)]
         [AllowNull()]
@@ -174,7 +207,7 @@ Function Add-ReportRunnerContextSection
     process
     {
         # Add the script to the list of scripts to process
-        $entry = New-Object 'ReportRunnerSection' -ArgumentList $Name, $Description, $Script, $Data
+        $entry = New-Object 'ReportRunnerSection' -ArgumentList $Name, $Description, $Scripts, $LibraryMatches, $Data
         $Context.Entries.Add($entry) | Out-Null
     }
 }
@@ -195,15 +228,35 @@ Function Invoke-ReportRunnerContext
         $Context.Entries | ForEach-Object {
             $entry = $_
 
+            # Create a list of the scripts to run for this context section
+            $scripts = New-Object 'System.Collections.Generic.LinkedList[ScriptBlock]'
+
+            # Add any scripts defined specifically for this context section
+            $entry.Scripts | ForEach-Object { $scripts.Add($_) }
+            
+            # Add library definition scripts where the name matches the incoming match list
+            $script:Definitions.Keys | ForEach-Object {
+                $key = $_
+                $count = ($entry.LibraryMatches | Where-Object { $key -match $_ } | Measure-Object).Count
+                if ($count -gt 0 )
+                {
+                    $scripts.Add($script:Definitions[$key])
+                }
+            }
+
             # Output a section format object
             $content = New-Object 'ReportRunnerSectionContent' -ArgumentList $entry.Name, $entry.Description
 
-            Invoke-Command -NoNewScope {
-                # Run the script block
-                try {
-                    ForEach-Object -InputObject $entry.Data, -Process $entry.Script
-                } catch {
-                    New-ReportRunnerNotice -Status InternalError -Description "Error running script: $_"
+            $scripts | ForEach-Object {
+                $script = $_
+
+                Invoke-Command -NoNewScope {
+                    # Run the script block
+                    try {
+                        ForEach-Object -InputObject $entry.Data, -Process $script
+                    } catch {
+                        New-ReportRunnerNotice -Status InternalError -Description "Error running script: $_"
+                    }
                 }
             } *>&1 | ForEach-Object {
                 $content.Content.Add($_) | Out-Null
@@ -322,11 +375,11 @@ Function Format-ReportRunnerContentAsHtml
                 }
                 elseif ([System.Management.Automation.DebugRecord].IsAssignableFrom($_.GetType()))
                 {
-                    $msg = ("DEBUG: {1}" -f $_.ToString())
+                    $msg = ("DEBUG: {0}" -f $_.ToString())
                 }
                 elseif ([System.Management.Automation.WarningRecord].IsAssignableFrom($_.GetType()))
                 {
-                    $msg = ("WARNING: {1}" -f $_.ToString())
+                    $msg = ("WARNING: {0}" -f $_.ToString())
                 }
 
                 if ([ReportRunnerFormatTable].IsAssignableFrom($msg.GetType()))
