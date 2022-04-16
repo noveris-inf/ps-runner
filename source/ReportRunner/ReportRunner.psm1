@@ -11,6 +11,7 @@ Set-StrictMode -Version 2
 # Add types
 Add-Type -AssemblyName 'System.Web'
 
+# List of library items that can be referenced in Add-ReportRunnerContextSection
 $Script:Definitions = New-Object 'System.Collections.Generic.Dictionary[string, ScriptBlock]'
 
 Class ReportRunnerSection
@@ -19,9 +20,10 @@ Class ReportRunnerSection
     [string]$Description
     [ScriptBlock[]]$Scripts
     [string[]]$LibraryMatches
-    $Data
+    [HashTable]$Data
 
-    ReportRunnerSection([string]$name, [string]$description, [ScriptBlock[]]$scripts, [string[]]$libraryMatches, [PSObject]$data)
+    ReportRunnerSection([string]$name, [string]$description, [ScriptBlock[]]$scripts,
+        [string[]]$libraryMatches, [HashTable]$data)
     {
         $this.Name = $name
         $this.Description = $description
@@ -201,7 +203,7 @@ Function Add-ReportRunnerContextSection
 
         [Parameter(Mandatory=$false)]
         [AllowNull()]
-        $Data = $null
+        [HashTable]$Data = $null
     )
 
     process
@@ -233,7 +235,7 @@ Function Invoke-ReportRunnerContext
 
             # Add any scripts defined specifically for this context section
             $entry.Scripts | ForEach-Object { $scripts.Add($_) }
-            
+
             # Add library definition scripts where the name matches the incoming match list
             $script:Definitions.Keys | ForEach-Object {
                 $key = $_
@@ -253,7 +255,7 @@ Function Invoke-ReportRunnerContext
                 Invoke-Command -NoNewScope {
                     # Run the script block
                     try {
-                        ForEach-Object -InputObject $entry.Data, -Process $script
+                        ForEach-Object -InputObject $entry.Data -Process $script
                     } catch {
                         New-ReportRunnerNotice -Status InternalError -Description "Error running script: $_"
                     }
@@ -332,6 +334,7 @@ Function Format-ReportRunnerContentAsHtml
             # Display section heading
             ("<b>Section: {0}</b><br>" -f $Section.Name)
             ("<i>{0}</i><br><p />" -f $Section.Description)
+            "<hr />"
 
             $output = $Section.Content | ForEach-Object {
 

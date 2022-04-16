@@ -5,16 +5,22 @@ Set-StrictMode -Version 2
 $InformationPreference = "Continue"
 $ErrorActionPreference = "Stop"
 
-
+Remove-Module ReportRunner -EA SilentlyContinue
 Import-Module ./ReportRunner/ReportRunner.psm1
 
 $context = New-ReportRunnerContext
 
 Add-ReportRunnerDefinition -Name "example.script" -Script {
-    Write-Information "Example Script"
+    $data = $_
+
+    $message = $data["Message"]
+
+    Write-Information "Example Script: $message"
 }
 
-Add-ReportRunnerContextSection -Context $context -Name "test1 name" -Description "test1 desc" -Data @{} -Scripts {
+Add-ReportRunnerContextSection -Context $context -Name "test1 name" -Description "test1 desc" -Data @{
+    Message = "Test1 name message"
+} -Scripts {
     Write-Warning "Standard warning message"
     "test1 message"
     New-ReportRunnerNotice -Status Warning -Description "Warning message 1"
@@ -22,11 +28,15 @@ Add-ReportRunnerContextSection -Context $context -Name "test1 name" -Description
     New-ReportRunnerNotice -Status Info -Description "Status message"
 
     # New-ReportRunnerFormatTable -Content (Get-Process)
+},{
+    Write-Information "Second Script"
 } -LibraryMatches @(
     "example\..*"
 )
 
-Add-ReportRunnerContextSection -Context $context -Name "test2 name" -Description "test2 desc" -Data @{} -Scripts {
+Add-ReportRunnerContextSection -Context $context -Name "test2 name" -Description "test2 desc" -Data @{
+    Message = "Test2 name message"
+} -Scripts {
     "test1 message"
     Write-Information "Info message"
     New-ReportRunnerNotice -Status Warning -Description "Warning message 2"
@@ -38,6 +48,8 @@ Add-ReportRunnerContextSection -Context $context -Name "test2 name" -Description
         Content = "Content"
     }
     New-ReportRunnerFormatTable -Content $obj
+},{
+    Write-Information "Second script"
 } -LibraryMatches @(
     "example\..*"
 )
