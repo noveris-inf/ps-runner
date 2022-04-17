@@ -18,17 +18,14 @@ Class ReportRunnerSection
 {
     [string]$Name
     [string]$Description
-    [ScriptBlock[]]$Scripts
-    [string[]]$LibraryMatches
+    [PSObject[]]$Items
     [HashTable]$Data
 
-    ReportRunnerSection([string]$name, [string]$description, [ScriptBlock[]]$scripts,
-        [string[]]$libraryMatches, [HashTable]$data)
+    ReportRunnerSection([string]$name, [string]$description, [PSObject[]]$items, [HashTable]$data)
     {
         $this.Name = $name
         $this.Description = $description
-        $this.Scripts = $scripts
-        $this.LibraryMatches = $libraryMatches
+        $this.Items = $items
         $this.Data = $data
     }
 }
@@ -37,13 +34,13 @@ class ReportRunnerSectionContent
 {
     [string]$Name
     [string]$Description
-    [System.Collections.ArrayList]$Content
+    [System.Collections.Generic.LinkedList[PSObject]]$Content
 
     ReportRunnerSectionContent([string]$Name, [string]$Description)
     {
         $this.Name = $name
         $this.Description = $description
-        $this.Content = New-Object 'System.Collections.ArrayList'
+        $this.Content = New-Object 'System.Collections.Generic.LinkedList[PSObject]'
     }
 }
 
@@ -58,7 +55,7 @@ Class ReportRunnerContext
 
     ReportRunnerContext()
     {
-        $this.Entries = New-Object 'System.Collections.Generic.List[ReportRunnerSection]'
+        $this.Entries = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerSection]'
     }
 }
 
@@ -159,8 +156,9 @@ Function Add-ReportRunnerDefinition
 {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$true, HelpMessage = "Must be in module.group.id format")]
         [ValidateNotNullOrEmpty()]
+        [ValidatePattern("^[a-zA-Z_-]*\.[a-zA-Z_-]*\.[a-zA-Z_-]*$")]
         [string]$Name,
 
         [Parameter(Mandatory=$true)]
@@ -195,11 +193,7 @@ Function Add-ReportRunnerContextSection
 
         [Parameter(Mandatory=$false)]
         [ValidateNotNull()]
-        [ScriptBlock[]]$Scripts = [ScriptBlock[]]@(),
-
-        [Parameter(Mandatory=$false)]
-        [ValidateNotNull()]
-        [string[]]$LibraryMatches = [string[]]@(),
+        [PSObject[]]$Items = [PSObject[]]@(),
 
         [Parameter(Mandatory=$false)]
         [AllowNull()]
@@ -209,7 +203,7 @@ Function Add-ReportRunnerContextSection
     process
     {
         # Add the script to the list of scripts to process
-        $entry = New-Object 'ReportRunnerSection' -ArgumentList $Name, $Description, $Scripts, $LibraryMatches, $Data
+        $entry = New-Object 'ReportRunnerSection' -ArgumentList $Name, $Description, $Items, $Data
         $Context.Entries.Add($entry) | Out-Null
     }
 }
@@ -234,15 +228,28 @@ Function Invoke-ReportRunnerContext
             $scripts = New-Object 'System.Collections.Generic.LinkedList[ScriptBlock]'
 
             # Add any scripts defined specifically for this context section
-            $entry.Scripts | ForEach-Object { $scripts.Add($_) }
+            $entry.Items | ForEach-Object {
+                $item = $_
 
-            # Add library definition scripts where the name matches the incoming match list
-            $script:Definitions.Keys | ForEach-Object {
-                $key = $_
-                $count = ($entry.LibraryMatches | Where-Object { $key -match $_ } | Measure-Object).Count
-                if ($count -gt 0 )
+                switch ($item.GetType().FullName)
                 {
-                    $scripts.Add($script:Definitions[$key])
+                    "System.String" {
+                        $script:Definitions.Keys |
+                            Where-Object { $_ -match [string]$item } |
+                            ForEach-Object {
+                                $scripts.Add($script:Definitions[$_])
+                            }
+                        break
+                    }
+
+                    "System.Management.Automation.ScriptBlock" {
+                        $scripts.Add($item)
+                        break
+                    }
+
+                    default {
+                        Write-Error "Unknown item type: $_"
+                    }
                 }
             }
 

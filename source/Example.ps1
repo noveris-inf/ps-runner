@@ -20,7 +20,7 @@ Add-ReportRunnerDefinition -Name "example.script" -Script {
 
 Add-ReportRunnerContextSection -Context $context -Name "test1 name" -Description "test1 desc" -Data @{
     Message = "Test1 name message"
-} -Scripts {
+} -Items @({
     Write-Warning "Standard warning message"
     "test1 message"
     New-ReportRunnerNotice -Status Warning -Description "Warning message 1"
@@ -30,13 +30,11 @@ Add-ReportRunnerContextSection -Context $context -Name "test1 name" -Description
     # New-ReportRunnerFormatTable -Content (Get-Process)
 },{
     Write-Information "Second Script"
-} -LibraryMatches @(
-    "example\..*"
-)
+},"example\..*")
 
 Add-ReportRunnerContextSection -Context $context -Name "test2 name" -Description "test2 desc" -Data @{
     Message = "Test2 name message"
-} -Scripts {
+} -Items @({
     "test1 message"
     Write-Information "Info message"
     New-ReportRunnerNotice -Status Warning -Description "Warning message 2"
@@ -50,8 +48,6 @@ Add-ReportRunnerContextSection -Context $context -Name "test2 name" -Description
     New-ReportRunnerFormatTable -Content $obj
 },{
     Write-Information "Second script"
-} -LibraryMatches @(
-    "example\..*"
-)
+},"example\..*")
 
 Invoke-ReportRunnerContext -Context $context | Format-ReportRunnerContentAsHtml -Title "Test Report"
