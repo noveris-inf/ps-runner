@@ -10,7 +10,7 @@ Import-Module ./ReportRunner/ReportRunner.psm1
 
 $context = New-ReportRunnerContext
 
-Add-ReportRunnerDefinition -Name "example.script" -Script {
+Add-ReportRunnerDefinition -Name "example.script.name" -Script {
     $data = $_
 
     $message = $data["Message"]
@@ -18,7 +18,7 @@ Add-ReportRunnerDefinition -Name "example.script" -Script {
     Write-Information "Example Script: $message"
 }
 
-Add-ReportRunnerContextSection -Context $context -Name "test1 name" -Description "test1 desc" -Data @{
+Add-ReportRunnerSection -Context $context -Name "test1 name" -Description "test1 desc" -Data @{
     Message = "Test1 name message"
 } -Items @({
     Write-Warning "Standard warning message"
@@ -32,7 +32,7 @@ Add-ReportRunnerContextSection -Context $context -Name "test1 name" -Description
     Write-Information "Second Script"
 },"example\..*")
 
-Add-ReportRunnerContextSection -Context $context -Name "test2 name" -Description "test2 desc" -Data @{
+Add-ReportRunnerSection -Context $context -Name "test2 name" -Description "test2 desc" -Data @{
     Message = "Test2 name message"
 } -Items @({
     "test1 message"

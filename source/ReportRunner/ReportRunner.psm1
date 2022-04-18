@@ -11,7 +11,7 @@ Set-StrictMode -Version 2
 # Add types
 Add-Type -AssemblyName 'System.Web'
 
-# List of library items that can be referenced in Add-ReportRunnerContextSection
+# List of library items that can be referenced in Add-ReportRunnerSection
 $Script:Definitions = New-Object 'System.Collections.Generic.Dictionary[string, ScriptBlock]'
 
 Class ReportRunnerSection
@@ -174,7 +174,7 @@ Function Add-ReportRunnerDefinition
 
 <#
 #>
-Function Add-ReportRunnerContextSection
+Function Add-ReportRunnerSection
 {
     [CmdletBinding()]
     param(
@@ -336,7 +336,7 @@ Function Format-ReportRunnerContentAsHtml
     {
         # Generate string content for this section
         $sectionContent = & {
-            $notices = New-Object 'System.Collections.Generic.List[string]'
+            $notices = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
 
             # Display section heading
             ("<b>Section: {0}</b><br>" -f $Section.Name)
@@ -352,23 +352,17 @@ Function Format-ReportRunnerContentAsHtml
                 if ([ReportRunnerNotice].IsAssignableFrom($msg.GetType()))
                 {
                     [ReportRunnerNotice]$notice = $_
-                    $noticeStr = $notice.ToString()
-                    $notices.Add($noticeStr) | Out-Null
+                    $notices.Add($notice) | Out-Null
 
-                    # Only add Notices that are issues to the all notices list
-                    if ($notice.Status -eq [ReportRunnerStatus]::Warning -or $notice.Status -eq [ReportRunnerStatus]::Error -or
-                        $notice.Status -eq [ReportRunnerStatus]::InternalError)
+                    if ($allNotices.Keys -notcontains $Section.Name)
                     {
-                        if ($null -eq $allNotices[$Section.Name])
-                        {
-                            $allNotices[$Section.Name] = New-Object 'System.Collections.Generic.List[string]'
-                        }
-
-                        $allNotices[$Section.Name].Add($noticeStr) | Out-Null
+                        $allNotices[$Section.Name] = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
                     }
 
+                    $allNotices[$Section.Name].Add($notice) | Out-Null
+
                     # Alter message to notice string representation
-                    $msg = $noticeStr
+                    $msg = $notice.ToString()
                 }
 
                 if ([System.Management.Automation.InformationRecord].IsAssignableFrom($_.GetType()))
@@ -413,15 +407,12 @@ Function Format-ReportRunnerContentAsHtml
             # Display notices for this section
             if (($notices | Measure-Object).Count -gt 0)
             {
-                "<u>Notices:</u><br><ul>"
-                $notices | ForEach-Object {
-                    ("<li>{0}</li>" -f $_)
-                }
-                "</ul><br>"
+                "<b>Notices</b><br>"
+                $notices | ConvertTo-Html -As Table -Fragment
+                "<br>"
             }
 
             # Display output
-            "<u>Content:</u><br>"
             $output | Out-String
 
             "<p />"
@@ -433,18 +424,19 @@ Function Format-ReportRunnerContentAsHtml
     end
     {
         # Display all notices here
-        "<u>All Notices:</u><br><ul>"
+        "<b>All Notices:</b><br />"
         $allNotices.Keys | ForEach-Object {
             $key = $_
-            ("<li>{0}</li>" -f $key)
-
-            "<ul>"
             $allNotices[$key] | ForEach-Object {
-                ("<li>{0}</li>" -f $_)
+                $notice = $_
+                [PSCustomObject]@{
+                    Section = $key
+                    Status = $notice.Status
+                    Description = $notice.Description
+                }
             }
-            "</ul>"
-        }
-        "</ul><br>"
+        } | ConvertTo-Html -As Table -Fragment
+        "<p />"
 
         # Display all section content
         $allSectionContent | ForEach-Object { $_ }
