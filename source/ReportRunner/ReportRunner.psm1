@@ -412,7 +412,7 @@ Function Format-ReportRunnerContentAsHtml
             if (($notices | Measure-Object).Count -gt 0)
             {
                 "<h4>Notices</h4><div class=`"section`">"
-                $notices | ConvertTo-Html -As Table -Fragment | Update-ReportRunnerNoticeCellClasses
+                $notices | ConvertTo-Html -As Table -Fragment | Update-ReportRunnerNoticeCellClass
                 "<br></div>"
             }
 
@@ -443,7 +443,7 @@ Function Format-ReportRunnerContentAsHtml
                     Description = $notice.Description
                 }
             }
-        } | ConvertTo-Html -As Table -Fragment | Update-ReportRunnerNoticeCellClasses
+        } | ConvertTo-Html -As Table -Fragment | Update-ReportRunnerNoticeCellClass
         "<p /></div>"
 
         # Display all section content
@@ -454,9 +454,11 @@ Function Format-ReportRunnerContentAsHtml
     }
 }
 
-Function Update-ReportRunnerNoticeCellClasses
+Function Update-ReportRunnerNoticeCellClass
 {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
+    [OutputType('System.String')]
     param(
         [Parameter(Mandatory=$true,ValueFromPipeline)]
         [AllowNull()]
