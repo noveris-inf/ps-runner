@@ -7,18 +7,25 @@ $ErrorActionPreference = "Stop"
 $InformationPreference = "Continue"
 Set-StrictMode -Version 2
 
+########
+# Add types
+Add-Type -AssemblyName 'System.Web'
+
+# List of library items that can be referenced in Add-ReportRunnerSection
+$Script:Definitions = New-Object 'System.Collections.Generic.Dictionary[string, ScriptBlock]'
+
 Class ReportRunnerSection
 {
     [string]$Name
     [string]$Description
-    [ScriptBlock]$Script
-    $Data
+    [PSObject[]]$Items
+    [HashTable]$Data
 
-    ReportRunnerSection([string]$name, [string]$description, [ScriptBlock]$script, [PSObject]$data)
+    ReportRunnerSection([string]$name, [string]$description, [PSObject[]]$items, [HashTable]$data)
     {
         $this.Name = $name
         $this.Description = $description
-        $this.Script = $script
+        $this.Items = $items
         $this.Data = $data
     }
 }
@@ -27,13 +34,13 @@ class ReportRunnerSectionContent
 {
     [string]$Name
     [string]$Description
-    [System.Collections.ArrayList]$Content
+    [System.Collections.Generic.LinkedList[PSObject]]$Content
 
     ReportRunnerSectionContent([string]$Name, [string]$Description)
     {
         $this.Name = $name
         $this.Description = $description
-        $this.Content = New-Object 'System.Collections.ArrayList'
+        $this.Content = New-Object 'System.Collections.Generic.LinkedList[PSObject]'
     }
 }
 
@@ -48,7 +55,7 @@ Class ReportRunnerContext
 
     ReportRunnerContext()
     {
-        $this.Entries = New-Object 'System.Collections.Generic.List[ReportRunnerSection]'
+        $this.Entries = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerSection]'
     }
 }
 
@@ -145,7 +152,29 @@ Function New-ReportRunnerContext
 
 <#
 #>
-Function Add-ReportRunnerContextSection
+Function Add-ReportRunnerDefinition
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true, HelpMessage = "Must be in module.group.id format")]
+        [ValidateNotNullOrEmpty()]
+        [ValidatePattern("^[a-zA-Z_-]*\.[a-zA-Z_-]*\.[a-zA-Z_-]*$")]
+        [string]$Name,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNull()]
+        [ScriptBlock]$Script
+    )
+
+    process
+    {
+        $script:Definitions[$Name] = $Script
+    }
+}
+
+<#
+#>
+Function Add-ReportRunnerSection
 {
     [CmdletBinding()]
     param(
@@ -162,19 +191,19 @@ Function Add-ReportRunnerContextSection
         [AllowEmptyString()]
         [string]$Description = "",
 
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory=$false)]
         [ValidateNotNull()]
-        [ScriptBlock]$Script,
+        [PSObject[]]$Items = [PSObject[]]@(),
 
         [Parameter(Mandatory=$false)]
         [AllowNull()]
-        $Data = $null
+        [HashTable]$Data = $null
     )
 
     process
     {
         # Add the script to the list of scripts to process
-        $entry = New-Object 'ReportRunnerSection' -ArgumentList $Name, $Description, $Script, $Data
+        $entry = New-Object 'ReportRunnerSection' -ArgumentList $Name, $Description, $Items, $Data
         $Context.Entries.Add($entry) | Out-Null
     }
 }
@@ -195,15 +224,48 @@ Function Invoke-ReportRunnerContext
         $Context.Entries | ForEach-Object {
             $entry = $_
 
+            # Create a list of the scripts to run for this context section
+            $scripts = New-Object 'System.Collections.Generic.LinkedList[ScriptBlock]'
+
+            # Add any scripts defined specifically for this context section
+            $entry.Items | ForEach-Object {
+                $item = $_
+
+                switch ($item.GetType().FullName)
+                {
+                    "System.String" {
+                        $script:Definitions.Keys |
+                            Where-Object { $_ -match [string]$item } |
+                            ForEach-Object {
+                                $scripts.Add($script:Definitions[$_])
+                            }
+                        break
+                    }
+
+                    "System.Management.Automation.ScriptBlock" {
+                        $scripts.Add($item)
+                        break
+                    }
+
+                    default {
+                        Write-Error "Unknown item type: $_"
+                    }
+                }
+            }
+
             # Output a section format object
             $content = New-Object 'ReportRunnerSectionContent' -ArgumentList $entry.Name, $entry.Description
 
-            Invoke-Command -NoNewScope {
-                # Run the script block
-                try {
-                    ForEach-Object -InputObject $entry.Data, -Process $entry.Script
-                } catch {
-                    New-ReportRunnerNotice -Status InternalError -Description "Error running script: $_"
+            $scripts | ForEach-Object {
+                $script = $_
+
+                Invoke-Command -NoNewScope {
+                    # Run the script block
+                    try {
+                        ForEach-Object -InputObject $entry.Data -Process $script
+                    } catch {
+                        New-ReportRunnerNotice -Status InternalError -Description "Error running script: $_"
+                    }
                 }
             } *>&1 | ForEach-Object {
                 $content.Content.Add($_) | Out-Null
@@ -255,11 +317,14 @@ Function Format-ReportRunnerContentAsHtml
         "}"
         "td, th {"
         "  border: 1px solid #ddd;"
-        "  padding: 8px;"
+        "  padding: 6px;"
         "}"
-        "tr:nth-child(even){background-color: #f2f2f2;}"
-        "tr:hover {background-color: #ddd;}"
-        "th {"
+        "div.section tr:nth-child(even){background-color: #f2f2f2;}"
+        "div.section tr:hover {background-color: #ddd;}"
+        ".warningCell {background-color: #ffeb9c;}"
+        ".errorCell {background-color: #ffc7ce;}"
+        ".internalErrorCell {background-color: #ffc7ce;}"
+        "div.section th {"
         "  padding-top: 12px;"
         "  padding-bottom: 12px;"
         "  text-align: left;"
@@ -268,17 +333,19 @@ Function Format-ReportRunnerContentAsHtml
         "}"
         "</style>"
         "</head><body>"
+        "<h2>$Title</h2>"
     }
 
     process
     {
         # Generate string content for this section
         $sectionContent = & {
-            $notices = New-Object 'System.Collections.Generic.List[string]'
+            $notices = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
 
             # Display section heading
-            ("<b>Section: {0}</b><br>" -f $Section.Name)
+            ("<h3>Section: {0}</h3>" -f $Section.Name)
             ("<i>{0}</i><br><p />" -f $Section.Description)
+            "<table><tr><td>"
 
             $output = $Section.Content | ForEach-Object {
 
@@ -289,23 +356,17 @@ Function Format-ReportRunnerContentAsHtml
                 if ([ReportRunnerNotice].IsAssignableFrom($msg.GetType()))
                 {
                     [ReportRunnerNotice]$notice = $_
-                    $noticeStr = $notice.ToString()
-                    $notices.Add($noticeStr) | Out-Null
+                    $notices.Add($notice) | Out-Null
 
-                    # Only add Notices that are issues to the all notices list
-                    if ($notice.Status -eq [ReportRunnerStatus]::Warning -or $notice.Status -eq [ReportRunnerStatus]::Error -or
-                        $notice.Status -eq [ReportRunnerStatus]::InternalError)
+                    if ($allNotices.Keys -notcontains $Section.Name)
                     {
-                        if ($null -eq $allNotices[$Section.Name])
-                        {
-                            $allNotices[$Section.Name] = New-Object 'System.Collections.Generic.List[string]'
-                        }
-
-                        $allNotices[$Section.Name].Add($noticeStr) | Out-Null
+                        $allNotices[$Section.Name] = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
                     }
 
+                    $allNotices[$Section.Name].Add($notice) | Out-Null
+
                     # Alter message to notice string representation
-                    $msg = $noticeStr
+                    $msg = $notice.ToString()
                 }
 
                 if ([System.Management.Automation.InformationRecord].IsAssignableFrom($_.GetType()))
@@ -322,11 +383,11 @@ Function Format-ReportRunnerContentAsHtml
                 }
                 elseif ([System.Management.Automation.DebugRecord].IsAssignableFrom($_.GetType()))
                 {
-                    $msg = ("DEBUG: {1}" -f $_.ToString())
+                    $msg = ("DEBUG: {0}" -f $_.ToString())
                 }
                 elseif ([System.Management.Automation.WarningRecord].IsAssignableFrom($_.GetType()))
                 {
-                    $msg = ("WARNING: {1}" -f $_.ToString())
+                    $msg = ("WARNING: {0}" -f $_.ToString())
                 }
 
                 if ([ReportRunnerFormatTable].IsAssignableFrom($msg.GetType()))
@@ -350,18 +411,18 @@ Function Format-ReportRunnerContentAsHtml
             # Display notices for this section
             if (($notices | Measure-Object).Count -gt 0)
             {
-                "<u>Notices:</u><br><ul>"
-                $notices | ForEach-Object {
-                    ("<li>{0}</li>" -f $_)
-                }
-                "</ul><br>"
+                "<h4>Notices</h4><div class=`"section`">"
+                $notices | ConvertTo-Html -As Table -Fragment | Update-ReportRunnerNoticeCellClasses
+                "<br></div>"
             }
 
             # Display output
-            "<u>Content:</u><br>"
+            "<h4>Content</h4><div class=`"section`">"
             $output | Out-String
+            "<br></div>"
 
             "<p />"
+            "</td></tr></table>"
         } | Out-String
 
         $allSectionContent.Add($sectionContent) | Out-Null
@@ -370,23 +431,46 @@ Function Format-ReportRunnerContentAsHtml
     end
     {
         # Display all notices here
-        "<u>All Notices:</u><br><ul>"
+        "<h3>All Notices</h3>"
+        "<i>Notices generated by any section</i><br><p /><div class=`"section`">"
         $allNotices.Keys | ForEach-Object {
             $key = $_
-            ("<li>{0}</li>" -f $key)
-
-            "<ul>"
             $allNotices[$key] | ForEach-Object {
-                ("<li>{0}</li>" -f $_)
+                $notice = $_
+                [PSCustomObject]@{
+                    Section = $key
+                    Status = $notice.Status
+                    Description = $notice.Description
+                }
             }
-            "</ul>"
-        }
-        "</ul><br>"
+        } | ConvertTo-Html -As Table -Fragment | Update-ReportRunnerNoticeCellClasses
+        "<p /></div>"
 
         # Display all section content
         $allSectionContent | ForEach-Object { $_ }
 
         # Wrap up HTML
         "</body></html>"
+    }
+}
+
+Function Update-ReportRunnerNoticeCellClasses
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true,ValueFromPipeline)]
+        [AllowNull()]
+        [string]$Content
+    )
+
+    process
+    {
+        $val = $Content
+
+        $val = $val.Replace("<td>Warning</td>", "<td class=`"warningCell`">Warning</td>")
+        $val = $val.Replace("<td>Error</td>", "<td class=`"errorCell`">Error</td>")
+        $val = $val.Replace("<td>InternalError</td>", "<td class=`"internalErrorCell`">InternalError</td>")
+
+        $val
     }
 }
