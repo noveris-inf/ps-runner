@@ -8,46 +8,50 @@ $ErrorActionPreference = "Stop"
 Remove-Module ReportRunner -EA SilentlyContinue
 Import-Module ./ReportRunner/ReportRunner.psm1
 
-$context = New-ReportRunnerContext
-
-Add-ReportRunnerDefinition -Name "example.script.name" -Script {
+# Add an example library function, which can be reused
+Add-ReportRunnerLibraryBlock -Id "example.script.name" -Name "Example Script" -Description "Example Script for testing" -Script {
     $data = $_
 
-    $message = $data["Message"]
+    Write-Information "Example Script Data (JSON):"
+    $data | ConvertTo-Json
 
-    Write-Information "Example Script: $message"
+    Write-Information "Example Script Data (Format-Table):"
+    $data | Format-Table
+
+    Write-Information "Example Script Data (New-ReportRunnerFormatTable):"
+    $data.GetEnumerator() | ConvertTo-ReportRunnerFormatTable
+
+    New-ReportRunnerNotice -Status Warning -Description "example script warning"
 }
 
-Add-ReportRunnerSection -Context $context -Name "test1 name" -Description "test1 desc" -Data @{
-    Message = "Test1 name message"
-} -Items @({
-    Write-Warning "Standard warning message"
-    "test1 message"
-    New-ReportRunnerNotice -Status Warning -Description "Warning message 1"
-    "Something"
-    New-ReportRunnerNotice -Status Info -Description "Status message"
+# Create the report runner context, with optional data
+$context = New-ReportRunnerContext -Title "Example Report" -Data @{ A=1; B=1; C=1 }
 
-    # New-ReportRunnerFormatTable -Content (Get-Process)
-},{
-    Write-Information "Second Script"
-},"example\..*")
+# Create a report runner section, with optional data
+$section = New-ReportRunnerSection -Context $context -Name "Section 1" -Description "Section 1 description" -Data @{ B=2; C=2 }
 
-Add-ReportRunnerSection -Context $context -Name "test2 name" -Description "test2 desc" -Data @{
-    Message = "Test2 name message"
-} -Items @({
-    "test1 message"
-    Write-Information "Info message"
-    New-ReportRunnerNotice -Status Warning -Description "Warning message 2"
-    New-ReportRunnerNotice -Status Error -Description "Error message 2"
+# Add some blocks to this section
+New-ReportRunnerBlock -Section $section -LibraryFilter "^example\.script\." -Data @{ C=3 }
+New-ReportRunnerBlock -Section $section -Name "Manual Block 1" -Description "Manual Block 1 description" -Data @{C=4} -Script {
+    $data = $_
 
-    # New-ReportRunnerFormatTable -Content (Get-Process)
-    $obj = [PSCustomObject]@{
-        Name = "test1"
-        Content = "Content"
-    }
-    New-ReportRunnerFormatTable -Content $obj
-},{
-    Write-Information "Second script"
-},"example\..*")
+    Write-Information "Manual Block 1 Data:"
+    $data | ConvertTo-Json
+    $data.GetEnumerator() | ConvertTo-ReportRunnerFormatTable
+}
 
-Invoke-ReportRunnerContext -Context $context | Format-ReportRunnerContentAsHtml -Title "Test Report"
+# Create a report runner section, with optional data
+$section = New-ReportRunnerSection -Context $context -Name "Section 2" -Description "Section 2 description" -Data @{ B=2; C=2 }
+
+# Add some blocks to this section
+New-ReportRunnerBlock -Section $section -LibraryFilter "^example\.script\." -Data @{ C=3 }
+New-ReportRunnerBlock -Section $section -Name "Manual Block 2" -Description "Manual Block 2 description" -Data @{C=4} -Script {
+    $data = $_
+
+    Write-Information "Manual Block 1 Data:"
+    $data | ConvertTo-Json
+    $data.GetEnumerator() | ConvertTo-ReportRunnerFormatTable
+}
+
+Invoke-ReportRunnerContext -Context $context
+Format-ReportRunnerContextAsHtml -Context $context
