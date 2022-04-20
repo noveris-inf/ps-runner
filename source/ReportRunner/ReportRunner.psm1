@@ -12,50 +12,63 @@ Set-StrictMode -Version 2
 Add-Type -AssemblyName 'System.Web'
 
 # List of library items that can be referenced in Add-ReportRunnerSection
-$Script:Definitions = New-Object 'System.Collections.Generic.Dictionary[string, ScriptBlock]'
+$Script:Definitions = New-Object 'System.Collections.Generic.Dictionary[string, ReportRunnerBlock]'
+
+Class ReportRunnerContext
+{
+    [string]$Title
+    [System.Collections.Generic.List[ReportRunnerSection]]$Sections
+    [HashTable]$Data
+
+    ReportRunnerContext([string]$title, [HashTable]$data)
+    {
+        $this.Title = $title
+        $this.Data = $data.Clone()
+        $this.Sections = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerSection]'
+    }
+}
 
 Class ReportRunnerSection
 {
     [string]$Name
     [string]$Description
-    [PSObject[]]$Items
     [HashTable]$Data
+    [System.Collections.Generic.LinkedList[ReportRunnerBlock]]$Blocks
 
-    ReportRunnerSection([string]$name, [string]$description, [PSObject[]]$items, [HashTable]$data)
+    ReportRunnerSection([string]$name, [string]$description, [HashTable]$data)
     {
         $this.Name = $name
         $this.Description = $description
-        $this.Items = $items
-        $this.Data = $data
+        $this.Data = $data.Clone()
+        $this.Blocks = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerBlock]'
     }
 }
 
-class ReportRunnerSectionContent
+class ReportRunnerBlock
 {
     [string]$Name
     [string]$Description
+    [HashTable]$Data
+    [ScriptBlock]$Script
     [System.Collections.Generic.LinkedList[PSObject]]$Content
 
-    ReportRunnerSectionContent([string]$Name, [string]$Description)
+    ReportRunnerBlock([string]$Name, [string]$Description, [HashTable]$data, [ScriptBlock]$script)
     {
         $this.Name = $name
         $this.Description = $description
         $this.Content = New-Object 'System.Collections.Generic.LinkedList[PSObject]'
+        $this.Data = $data.Clone()
+        $this.Script = $script
     }
 }
 
 Class ReportRunnerFormatTable
 {
-    $Content
-}
+    [System.Collections.ArrayList]$Content
 
-Class ReportRunnerContext
-{
-    [System.Collections.Generic.List[ReportRunnerSection]]$Entries
-
-    ReportRunnerContext()
+    ReportRunnerFormatTable([System.Collections.ArrayList]$content)
     {
-        $this.Entries = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerSection]'
+        $this.Content = $content
     }
 }
 
@@ -89,6 +102,128 @@ Class ReportRunnerNotice
 
 <#
 #>
+Function New-ReportRunnerContext
+{
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    [CmdletBinding()]
+    [OutputType('ReportRunnerContext')]
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Title,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateNotNull()]
+        [HashTable]$Data = @{}
+    )
+
+    process
+    {
+        $obj = New-Object ReportRunnerContext -ArgumentList $Title, $Data
+
+        $obj
+    }
+}
+
+<#
+#>
+Function New-ReportRunnerSection
+{
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    [CmdletBinding()]
+    [OutputType('ReportRunnerSection')]
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNull()]
+        [ReportRunnerContext]$Context,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Description,
+
+        [Parameter(Mandatory=$false)]
+        [ValidateNotNull()]
+        [HashTable]$Data = @{}
+    )
+
+    process
+    {
+        $obj = New-Object ReportRunnerSection -ArgumentList $Name, $Description, $Data
+
+        # Add this new section to the list of sections in the current context
+        $Context.Sections.Add($obj)
+
+        # Pass the section on to allow the caller access to the section
+        $obj
+    }
+}
+
+<#
+#>
+Function New-ReportRunnerBlock
+{
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
+    [CmdletBinding(DefaultParameterSetName="NewBlock")]
+    [OutputType('ReportRunnerBlock')]
+    param(
+        [Parameter(Mandatory=$true, ParameterSetName="NewBlock")]
+        [Parameter(Mandatory=$true, ParameterSetName="Library")]
+        [ValidateNotNullOrEmpty()]
+        [ReportRunnerSection]$Section,
+
+        [Parameter(Mandatory=$true, ParameterSetName="Library")]
+        [ValidateNotNullOrEmpty()]
+        [string]$LibraryFilter,
+
+        [Parameter(Mandatory=$true, ParameterSetName="NewBlock")]
+        [ValidateNotNullOrEmpty()]
+        [string]$Name,
+
+        [Parameter(Mandatory=$true, ParameterSetName="NewBlock")]
+        [ValidateNotNullOrEmpty()]
+        [string]$Description,
+
+        [Parameter(Mandatory=$true, ParameterSetName="Library")]
+        [Parameter(Mandatory=$true, ParameterSetName="NewBlock")]
+        [ValidateNotNull()]
+        [HashTable]$Data,
+
+        [Parameter(Mandatory=$true, ParameterSetName="NewBlock")]
+        [ValidateNotNull()]
+        [ScriptBlock]$Script
+    )
+
+    process
+    {
+        # Check if we're matching on a LibraryFilter, rather than a new block
+        if (![string]::IsNullOrEmpty($LibraryFilter))
+        {
+            # Find all matches and add each block to the section with the supplied data
+            $script:Definitions.Keys | Where-Object { $_ -match $LibraryFilter} | ForEach-Object {
+                $lib = $Script:Definitions[$_]
+
+                $obj = New-Object ReportRunnerBlock -ArgumentList $lib.Name, $lib.Description, $Data, $lib.Script
+
+                $Section.Blocks.Add($obj)
+            }
+
+            return
+        }
+
+        # Create a new block that will be added to the section
+        $obj = New-Object ReportRunnerBlock -ArgumentList $Name, $Description, $Data, $Script
+
+        # Add this new block to the list of blocks in the current section
+        $Section.Blocks.Add($obj)
+    }
+}
+
+<#
+#>
 Function New-ReportRunnerNotice
 {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
@@ -113,20 +248,29 @@ Function New-ReportRunnerNotice
 
 <#
 #>
-Function New-ReportRunnerFormatTable
+Function ConvertTo-ReportRunnerFormatTable
 {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
     param(
-        [Parameter(mandatory=$true)]
+        [Parameter(mandatory=$true,ValueFromPipeline)]
         [ValidateNotNull()]
         $Content
     )
 
+    begin
+    {
+        $objs = New-Object 'System.Collections.ArrayList'
+    }
+
     process
     {
-        $format = New-Object 'ReportRunnerFormatTable'
-        $format.Content = $Content
+        $objs.Add($Content) | Out-Null
+    }
+
+    end
+    {
+        $format = [ReportRunnerFormatTable]::New($objs)
 
         $format
     }
@@ -134,32 +278,22 @@ Function New-ReportRunnerFormatTable
 
 <#
 #>
-Function New-ReportRunnerContext
-{
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
-    [CmdletBinding()]
-    [OutputType('ReportRunnerContext')]
-    param(
-    )
-
-    process
-    {
-        $obj = New-Object ReportRunnerContext
-
-        $obj
-    }
-}
-
-<#
-#>
-Function Add-ReportRunnerDefinition
+Function Add-ReportRunnerLibraryBlock
 {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true, HelpMessage = "Must be in module.group.id format")]
         [ValidateNotNullOrEmpty()]
         [ValidatePattern("^[a-zA-Z_-]*\.[a-zA-Z_-]*\.[a-zA-Z_-]*$")]
+        [string]$Id,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
         [string]$Name,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Description,
 
         [Parameter(Mandatory=$true)]
         [ValidateNotNull()]
@@ -168,43 +302,7 @@ Function Add-ReportRunnerDefinition
 
     process
     {
-        $script:Definitions[$Name] = $Script
-    }
-}
-
-<#
-#>
-Function Add-ReportRunnerSection
-{
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true,ValueFromPipeline)]
-        [ValidateNotNull()]
-        [ReportRunnerContext]$Context,
-
-        [Parameter(Mandatory=$true)]
-        [ValidateNotNullOrEmpty()]
-        [string]$Name,
-
-        [Parameter(Mandatory=$false)]
-        [ValidateNotNull()]
-        [AllowEmptyString()]
-        [string]$Description = "",
-
-        [Parameter(Mandatory=$false)]
-        [ValidateNotNull()]
-        [PSObject[]]$Items = [PSObject[]]@(),
-
-        [Parameter(Mandatory=$false)]
-        [AllowNull()]
-        [HashTable]$Data = $null
-    )
-
-    process
-    {
-        # Add the script to the list of scripts to process
-        $entry = New-Object 'ReportRunnerSection' -ArgumentList $Name, $Description, $Items, $Data
-        $Context.Entries.Add($entry) | Out-Null
+        $script:Definitions[$Id] = New-Object ReportRunnerBlock -ArgumentList $Name, $Description, @{}, $Script
     }
 }
 
@@ -221,94 +319,65 @@ Function Invoke-ReportRunnerContext
 
     process
     {
-        $Context.Entries | ForEach-Object {
-            $entry = $_
+        $Context.Sections | ForEach-Object {
+            $section = $_
 
-            # Create a list of the scripts to run for this context section
-            $scripts = New-Object 'System.Collections.Generic.LinkedList[ScriptBlock]'
+            # Flatten the Context and Section data in to a new HashTable
+            $sectionData = $Context.Data.Clone()
+            $section.Data.Keys | ForEach-Object { $sectionData[$_] = $section.Data[$_] }
 
-            # Add any scripts defined specifically for this context section
-            $entry.Items | ForEach-Object {
-                $item = $_
+            $section.Blocks | ForEach-Object {
+                $block = $_
 
-                switch ($item.GetType().FullName)
-                {
-                    "System.String" {
-                        $script:Definitions.Keys |
-                            Where-Object { $_ -match [string]$item } |
-                            ForEach-Object {
-                                $scripts.Add($script:Definitions[$_])
-                            }
-                        break
-                    }
+                # Flatten the Section and Block data in to a new HashTable
+                $blockData = $sectionData.Clone()
+                $block.Data.Keys | ForEach-Object { $blockData[$_] = $block.Data[$_] }
 
-                    "System.Management.Automation.ScriptBlock" {
-                        $scripts.Add($item)
-                        break
-                    }
-
-                    default {
-                        Write-Error "Unknown item type: $_"
-                    }
-                }
-            }
-
-            # Output a section format object
-            $content = New-Object 'ReportRunnerSectionContent' -ArgumentList $entry.Name, $entry.Description
-
-            $scripts | ForEach-Object {
-                $script = $_
-
+                # Invoke the block script with the relevant data and store content
+                $content = New-Object 'System.Collections.Generic.LinkedList[PSObject]'
                 Invoke-Command -NoNewScope {
                     # Run the script block
                     try {
-                        ForEach-Object -InputObject $entry.Data -Process $script
+                        ForEach-Object -InputObject $blockData -Process $block.Script
                     } catch {
                         New-ReportRunnerNotice -Status InternalError -Description "Error running script: $_"
                     }
-                }
-            } *>&1 | ForEach-Object {
-                $content.Content.Add($_) | Out-Null
-            }
+                } *>&1 | ForEach-Object { $content.Add($_) }
 
-            $content
+                # Save the content back to the block
+                $block.Content = $content
+            }
         }
     }
 }
 
 <#
 #>
-Function Format-ReportRunnerContentAsHtml
+Function Format-ReportRunnerContextAsHtml
 {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '')]
     [CmdletBinding()]
     [OutputType([System.String])]
     param(
-        [Parameter(Mandatory=$true,ValueFromPipeline)]
+        [Parameter(Mandatory=$true)]
         [ValidateNotNull()]
-        [ReportRunnerSectionContent]$Section,
-
-        [Parameter(Mandatory=$false)]
-        [AllowEmptyString()]
-        [ValidateNotNull()]
-        [string]$Title = "",
+        [ReportRunnerContext]$Context,
 
         [Parameter(Mandatory=$false)]
         [bool]$DecodeHtml = $true
     )
 
-    begin
+    process
     {
         # Collection of all notices across all sections
         $allNotices = [ordered]@{}
 
-        $allSectionContent = New-Object 'System.Collections.ArrayList'
-
         # Html preamble
+        $title = $Context.Title
         "<!DOCTYPE html PUBLIC `"-//W3C//DTD XHTML 1.0 Strict//EN`"  `"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd`">"
         "<html xmlns=`"http://www.w3.org/1999/xhtml`">"
         "<head>"
-        "<title>$Title</title>"
+        "<title>$title</title>"
         "<style>"
         "table {"
         "  font-family: Arial, Helvetica, sans-serif;"
@@ -319,120 +388,139 @@ Function Format-ReportRunnerContentAsHtml
         "  border: 1px solid #ddd;"
         "  padding: 6px;"
         "}"
-        "div.section tr:nth-child(even){background-color: #f2f2f2;}"
-        "div.section tr:hover {background-color: #ddd;}"
+        "tr:nth-child(even){background-color: #f2f2f2;}"
+        "tr:hover {background-color: #ddd;}"
         ".warningCell {background-color: #ffeb9c;}"
         ".errorCell {background-color: #ffc7ce;}"
         ".internalErrorCell {background-color: #ffc7ce;}"
-        "div.section th {"
+        "th {"
         "  padding-top: 12px;"
         "  padding-bottom: 12px;"
         "  text-align: left;"
         "  background-color: #04AA6D;"
         "  color: white;"
         "}"
+        "div.section {"
+        "  padding: 10px;"
+        "  padding-bottom: 20px;"
+        "  border: 1px solid gray;"
+        "  margin-bottom: 10px;"
+        "  box-shadow: 4px 3px 8px 1px #969696"
+        "}"
+        "div.block {"
+        "  border-top: 1px solid gray;"
+        "  margin-top: 20px;"
+        "}"
         "</style>"
         "</head><body>"
-        "<h2>$Title</h2>"
-    }
+        "<h2>$title</h2>"
 
-    process
-    {
-        # Generate string content for this section
-        $sectionContent = & {
+        $allContent = $Context.Sections | ForEach-Object {
+            $section = $_
             $notices = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
 
-            # Display section heading
+            # Format section start
+            "<div class=`"section`">"
             ("<h3>Section: {0}</h3>" -f $Section.Name)
-            ("<i>{0}</i><br><p />" -f $Section.Description)
-            "<table><tr><td>"
+            ("<i>{0}</i><br><br>" -f $Section.Description)
 
-            $output = $Section.Content | ForEach-Object {
+            # Iterate through block content
+            $content = $section.Blocks | ForEach-Object {
+                $block = $_
 
-                # Default message to pass on in pipeline
-                $msg = $_
+                # Format block start
+                "<div class=`"block`">"
+                ("<h4>{0}</h4><i>{1}</i><br><br>" -f $block.Name, $block.Description)
 
-                # Check if it is a string or status object
-                if ([ReportRunnerNotice].IsAssignableFrom($msg.GetType()))
-                {
-                    [ReportRunnerNotice]$notice = $_
-                    $notices.Add($notice) | Out-Null
+                # Format block content
+                $blockContent = $block.Content | ForEach-Object {
+                    $msg = $_
 
-                    if ($allNotices.Keys -notcontains $Section.Name)
+                    # Check if it is a string or status object
+                    if ([ReportRunnerNotice].IsAssignableFrom($msg.GetType()))
                     {
-                        $allNotices[$Section.Name] = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
+                        [ReportRunnerNotice]$notice = $_
+                        $notices.Add($notice) | Out-Null
+
+                        if ($allNotices.Keys -notcontains $section.Name)
+                        {
+                            $allNotices[$section.Name] = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
+                        }
+
+                        $allNotices[$section.Name].Add($notice) | Out-Null
+
+                        # Alter message to notice string representation
+                        $msg = $notice.ToString()
                     }
 
-                    $allNotices[$Section.Name].Add($notice) | Out-Null
-
-                    # Alter message to notice string representation
-                    $msg = $notice.ToString()
-                }
-
-                if ([System.Management.Automation.InformationRecord].IsAssignableFrom($_.GetType()))
-                {
-                    $msg = ("INFO: {0}" -f $_.ToString())
-                }
-                elseif ([System.Management.Automation.VerboseRecord].IsAssignableFrom($_.GetType()))
-                {
-                    $msg = ("VERBOSE: {0}" -f $_.ToString())
-                }
-                elseif ([System.Management.Automation.ErrorRecord].IsAssignableFrom($_.GetType()))
-                {
-                    $msg = ("ERROR: {0}" -f $_.ToString())
-                }
-                elseif ([System.Management.Automation.DebugRecord].IsAssignableFrom($_.GetType()))
-                {
-                    $msg = ("DEBUG: {0}" -f $_.ToString())
-                }
-                elseif ([System.Management.Automation.WarningRecord].IsAssignableFrom($_.GetType()))
-                {
-                    $msg = ("WARNING: {0}" -f $_.ToString())
-                }
-
-                if ([ReportRunnerFormatTable].IsAssignableFrom($msg.GetType()))
-                {
-                    $msg = $msg.Content | ConvertTo-Html -As Table -Fragment
-                }
-
-                if ([string].IsAssignableFrom($msg.GetType()))
-                {
-                    $msg += "<br>"
-                    if ($DecodeHtml)
+                    if ([System.Management.Automation.InformationRecord].IsAssignableFrom($_.GetType()))
                     {
-                        $msg = [System.Web.HttpUtility]::HtmlDecode($msg)
+                        $msg = ("INFO: {0}" -f $_.ToString())
                     }
-                }
+                    elseif ([System.Management.Automation.VerboseRecord].IsAssignableFrom($_.GetType()))
+                    {
+                        $msg = ("VERBOSE: {0}" -f $_.ToString())
+                    }
+                    elseif ([System.Management.Automation.ErrorRecord].IsAssignableFrom($_.GetType()))
+                    {
+                        $msg = ("ERROR: {0}" -f $_.ToString())
+                    }
+                    elseif ([System.Management.Automation.DebugRecord].IsAssignableFrom($_.GetType()))
+                    {
+                        $msg = ("DEBUG: {0}" -f $_.ToString())
+                    }
+                    elseif ([System.Management.Automation.WarningRecord].IsAssignableFrom($_.GetType()))
+                    {
+                        $msg = ("WARNING: {0}" -f $_.ToString())
+                    }
 
-                # Pass message on in the pipeline
-                $msg
+                    if ([ReportRunnerFormatTable].IsAssignableFrom($msg.GetType()))
+                    {
+                        $msg = $msg.Content | ConvertTo-Html -As Table -Fragment | Out-String
+                        $msg = $msg.Replace([Environment]::Newline, "")
+                    }
+
+                    if ([string].IsAssignableFrom($msg.GetType()))
+                    {
+                        # $msg += "<br>"
+                        if ($DecodeHtml)
+                        {
+                            $msg = [System.Web.HttpUtility]::HtmlDecode($msg)
+                        }
+                    }
+
+                    # Pass message on in the pipeline
+                    $msg
+                } | Out-String
+
+                # Replace newlines with breaks and output
+                $blockContent = $blockContent.Replace([Environment]::Newline, "<br>")
+                $blockContent
+
+                # Format block end
+                "</div>"
             }
 
             # Display notices for this section
             if (($notices | Measure-Object).Count -gt 0)
             {
-                "<h4>Notices</h4><div class=`"section`">"
+                "<div class=`"notice`">"
+                "<h4>Notices</h4>"
                 $notices | ConvertTo-Html -As Table -Fragment | Update-ReportRunnerNoticeCellClass
-                "<br></div>"
+                "</div>"
             }
 
-            # Display output
-            "<h4>Content</h4><div class=`"section`">"
-            $output | Out-String
-            "<br></div>"
+            # Display block content
+            $content | Out-String
 
-            "<p />"
-            "</td></tr></table>"
+            # Format section end
+            "</div>"
         } | Out-String
 
-        $allSectionContent.Add($sectionContent) | Out-Null
-    }
-
-    end
-    {
         # Display all notices here
+        "<div class=`"section`"><div class=`"notice`">"
         "<h3>All Notices</h3>"
-        "<i>Notices generated by any section</i><br><p /><div class=`"section`">"
+        "<i>Notices generated by any section</i>"
         $allNotices.Keys | ForEach-Object {
             $key = $_
             $allNotices[$key] | ForEach-Object {
@@ -444,10 +532,10 @@ Function Format-ReportRunnerContentAsHtml
                 }
             }
         } | ConvertTo-Html -As Table -Fragment | Update-ReportRunnerNoticeCellClass
-        "<p /></div>"
+        "</div></div>"
 
         # Display all section content
-        $allSectionContent | ForEach-Object { $_ }
+        $allContent | ForEach-Object { $_ }
 
         # Wrap up HTML
         "</body></html>"
