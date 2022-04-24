@@ -366,7 +366,10 @@ Function Format-ReportRunnerContextAsHtml
         [ReportRunnerContext]$Context,
 
         [Parameter(Mandatory=$false)]
-        [bool]$DecodeHtml = $true
+        [bool]$DecodeHtml = $true,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$SummaryOnly = $false
     )
 
     process
@@ -421,22 +424,30 @@ Function Format-ReportRunnerContextAsHtml
         "</head><body>"
         "<h2>$title</h2>"
 
-        $allContent = $Context.Sections | ForEach-Object {
+        $sectionList = New-Object 'System.Collections.Generic.LinkedList[PSCustomObject]'
+        $sectionContent = $Context.Sections | ForEach-Object {
             $section = $_
             $notices = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
+            $sectionGuid = [Guid]::NewGuid()
+
+            # Add the section to the section list
+            $sectionList.Add([PSCustomObject]@{
+                Name = $section.Name
+                Id = [string]$sectionGuid
+            })
 
             # Format section start
-            "<div class=`"section`">"
-            ("<h3>Section: {0}</h3>" -f $Section.Name)
-            ("<i>{0}</i><br><br>" -f $Section.Description)
+            "<div class=`"section`" id=`"$sectionGuid`">"
+            ("<h3>Section: {0}</h3>" -f $section.Name)
+            ("<i>{0}</i><br><br>" -f $section.Description)
 
             # Iterate through block content
             $content = $section.Blocks | ForEach-Object {
                 $block = $_
-                $guid = [Guid]::NewGuid()
+                $blockGuid = [Guid]::NewGuid()
 
                 # Format block start
-                "<div class=`"block`" id=`"$guid`">"
+                "<div class=`"block`" id=`"$blockGuid`">"
                 ("<h4>{0}</h4><i>{1}</i><br><br>" -f $block.Name, $block.Description)
 
                 # Format block content
@@ -447,7 +458,7 @@ Function Format-ReportRunnerContextAsHtml
                     if ([ReportRunnerNotice].IsAssignableFrom($msg.GetType()))
                     {
                         [ReportRunnerNotice]$notice = $_
-                        $notice.SourceBlock = $guid
+                        $notice.SourceBlock = $blockGuid
                         $notices.Add($notice) | Out-Null
 
                         if ($allNotices.Keys -notcontains $section.Name)
@@ -518,7 +529,7 @@ Function Format-ReportRunnerContextAsHtml
                 "<h4>Notices</h4>"
 
                 $notices |
-                    Format-ReportRunnerNoticeHtml |
+                    Format-ReportRunnerNotice -IncludeLinks |
                     ConvertTo-Html -As Table -Fragment |
                     Update-ReportRunnerNoticeCellClass |
                     Format-ReportRunnerDecodeHtml
@@ -540,13 +551,26 @@ Function Format-ReportRunnerContextAsHtml
 
         $allNotices.Keys | ForEach-Object {
             $key = $_
-            $allNotices[$key] | Format-ReportRunnerNoticeHtml -SectionName $key
+            $allNotices[$key] | Format-ReportRunnerNotice -SectionName $key -IncludeLinks:(!$SummaryOnly)
         } | ConvertTo-Html -As Table -Fragment | Update-ReportRunnerNoticeCellClass | Format-ReportRunnerDecodeHtml
 
         "</div></div>"
 
-        # Display all section content
-        $allContent | ForEach-Object { $_ }
+        # Display body for the report, if required
+        if (!$SummaryOnly)
+        {
+            # Display section table of contents
+            "<div class=`"section`">"
+            "<h3>Sections</h3>"
+            $sectionList | ForEach-Object {
+                ("<a href=`"#{0}`">{1}</a><br>" -f $_.Id, $_.Name)
+            }
+            "</div>"
+
+
+            # Display all section content
+            $sectionContent | ForEach-Object { $_ }
+        }
 
         # Wrap up HTML
         "</body></html>"
@@ -576,7 +600,7 @@ Function Update-ReportRunnerNoticeCellClass
     }
 }
 
-Function Format-ReportRunnerNoticeHtml
+Function Format-ReportRunnerNotice
 {
     [CmdletBinding()]
     param(
@@ -586,14 +610,17 @@ Function Format-ReportRunnerNoticeHtml
 
         [Parameter(Mandatory=$false)]
         [ValidateNotNullOrEmpty()]
-        [string]$SectionName
+        [string]$SectionName,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$IncludeLinks = $false
     )
 
     process
     {
         # Format the description as Html ID reference, if SourceBlock has been defined
         $description = $_.Description
-        if (![string]::IsNullOrEmpty($Notice.SourceBlock))
+        if ($IncludeLinks -and ![string]::IsNullOrEmpty($Notice.SourceBlock))
         {
             $description = ("<a href=`"#{0}`">{1}</a>" -f $_.SourceBlock, $description)
         }
