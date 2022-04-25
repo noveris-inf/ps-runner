@@ -33,27 +33,29 @@ Class ReportRunnerSection
     [string]$Name
     [string]$Description
     [HashTable]$Data
-    [System.Collections.Generic.LinkedList[ReportRunnerBlock]]$Blocks
+    [System.Collections.Generic.Dictionary[string, ReportRunnerBlock]]$Blocks
 
     ReportRunnerSection([string]$name, [string]$description, [HashTable]$data)
     {
         $this.Name = $name
         $this.Description = $description
         $this.Data = $data.Clone()
-        $this.Blocks = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerBlock]'
+        $this.Blocks = New-Object 'System.Collections.Generic.Dictionary[string, ReportRunnerBlock]'
     }
 }
 
 class ReportRunnerBlock
 {
+    [string]$Id
     [string]$Name
     [string]$Description
     [HashTable]$Data
     [ScriptBlock]$Script
     [System.Collections.Generic.LinkedList[PSObject]]$Content
 
-    ReportRunnerBlock([string]$Name, [string]$Description, [HashTable]$data, [ScriptBlock]$script)
+    ReportRunnerBlock([string]$id, [string]$name, [string]$description, [HashTable]$data, [ScriptBlock]$script)
     {
+        $this.Id = $id
         $this.Name = $name
         $this.Description = $description
         $this.Content = New-Object 'System.Collections.Generic.LinkedList[PSObject]'
@@ -182,6 +184,10 @@ Function New-ReportRunnerBlock
         [string]$LibraryFilter,
 
         [Parameter(Mandatory=$true, ParameterSetName="NewBlock")]
+        [ValidatePattern("^[a-zA-Z_-]*\.[a-zA-Z_-]*\.[a-zA-Z_-]*$")]
+        [string]$Id,
+
+        [Parameter(Mandatory=$true, ParameterSetName="NewBlock")]
         [ValidateNotNullOrEmpty()]
         [string]$Name,
 
@@ -208,19 +214,19 @@ Function New-ReportRunnerBlock
             $script:Definitions.Keys | Where-Object { $_ -match $LibraryFilter} | ForEach-Object {
                 $lib = $Script:Definitions[$_]
 
-                $obj = New-Object ReportRunnerBlock -ArgumentList $lib.Name, $lib.Description, $Data, $lib.Script
+                $obj = New-Object ReportRunnerBlock -ArgumentList $lib.Id, $lib.Name, $lib.Description, $Data, $lib.Script
 
-                $Section.Blocks.Add($obj)
+                $Section.Blocks[$lib.Id] = $obj
             }
 
             return
         }
 
         # Create a new block that will be added to the section
-        $obj = New-Object ReportRunnerBlock -ArgumentList $Name, $Description, $Data, $Script
+        $obj = New-Object ReportRunnerBlock -ArgumentList $Id, $Name, $Description, $Data, $Script
 
         # Add this new block to the list of blocks in the current section
-        $Section.Blocks.Add($obj)
+        $Section.Blocks[$Id] = $obj
     }
 }
 
@@ -304,7 +310,7 @@ Function Add-ReportRunnerLibraryBlock
 
     process
     {
-        $script:Definitions[$Id] = New-Object ReportRunnerBlock -ArgumentList $Name, $Description, @{}, $Script
+        $script:Definitions[$Id] = New-Object ReportRunnerBlock -ArgumentList $Id, $Name, $Description, @{}, $Script
     }
 }
 
@@ -328,8 +334,9 @@ Function Invoke-ReportRunnerContext
             $sectionData = $Context.Data.Clone()
             $section.Data.Keys | ForEach-Object { $sectionData[$_] = $section.Data[$_] }
 
-            $section.Blocks | ForEach-Object {
-                $block = $_
+            $section.Blocks.Keys | ForEach-Object {
+                $blockId = $_
+                $block = $section.Blocks[$blockId]
 
                 # Flatten the Section and Block data in to a new HashTable
                 $blockData = $sectionData.Clone()
@@ -442,13 +449,14 @@ Function Format-ReportRunnerContextAsHtml
             ("<i>{0}</i><br><br>" -f $section.Description)
 
             # Iterate through block content
-            $content = $section.Blocks | ForEach-Object {
-                $block = $_
+            $content = $section.Blocks.Keys | ForEach-Object {
+                $blockId = $_
+                $block = $section.Blocks[$blockId]
                 $blockGuid = [Guid]::NewGuid()
 
                 # Format block start
                 "<div class=`"block`" id=`"$blockGuid`">"
-                ("<h4>{0}</h4><i>{1}</i><br><br>" -f $block.Name, $block.Description)
+                ("<h4>{0} ({1})</h4><i>{2}</i><br><br>" -f $block.Name, $block.Id, $block.Description)
 
                 # Format block content
                 $blockContent = $block.Content | ForEach-Object {
@@ -661,5 +669,90 @@ Function Format-ReportRunnerDecodeHtml
         }
 
         $output
+    }
+}
+
+<#
+#>
+Function Update-ReportRunnerBlockData
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNull()]
+        [ReportRunnerSection]$Section,
+
+        [Parameter(Mandatory=$true)]
+        [ValidatePattern("^[a-zA-Z_-]*\.[a-zA-Z_-]*\.[a-zA-Z_-]*$")]
+        [string]$Id,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNull()]
+        [HashTable]$Data,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$Replace = $false
+    )
+
+    process
+    {
+        if ($Section.Blocks.Keys -notcontains $Id)
+        {
+            Write-Error "Block with id ($Id) does not exist in section"
+        }
+
+        $block = $Section.Blocks[$Id]
+        if ($Replace)
+        {
+            $block.Data = $Data.Clone()
+        } else {
+            $block.Data = $block.Data.Clone()
+            $Data.Keys | ForEach-Object {
+                $block.Data[$_] = $Data[$_]
+            }
+        }
+    }
+}
+
+Function Get-ReportRunnerDataProperty
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNull()]
+        [HashTable]$Data,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Property,
+
+        [Parameter(Mandatory=$false)]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        $DefaultValue
+    )
+
+    process
+    {
+        if ($Data.Keys -contains $Property)
+        {
+            $Data[$Property]
+            return
+        }
+
+        if ($PSBoundParameters.Keys -contains "DefaultValue")
+        {
+            $valueStr = $DefaultValue
+            if ($null -eq $DefaultValue)
+            {
+                $valueStr = "(null)"
+            }
+            Write-Information ("Using default value for property {0}: {1}" -f $Property, $valueStr)
+
+            $DefaultValue
+            return
+        }
+
+        Write-Error "Missing property $Property in HashTable data"
     }
 }

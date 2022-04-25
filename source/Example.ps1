@@ -32,7 +32,7 @@ $section = New-ReportRunnerSection -Context $context -Name "Section 1" -Descript
 
 # Add some blocks to this section
 New-ReportRunnerBlock -Section $section -LibraryFilter "^example\.script\." -Data @{ C=3 }
-New-ReportRunnerBlock -Section $section -Name "Manual Block 1" -Description "Manual Block 1 description" -Data @{C=4} -Script {
+New-ReportRunnerBlock -Section $section -Id "example.manual.first" -Name "Manual Block 1" -Description "Manual Block 1 description" -Data @{C=4} -Script {
     $data = $_
 
     Write-Information "Manual Block 1 Data:"
@@ -45,13 +45,25 @@ $section = New-ReportRunnerSection -Context $context -Name "Section 2" -Descript
 
 # Add some blocks to this section
 New-ReportRunnerBlock -Section $section -LibraryFilter "^example\.script\." -Data @{ C=3 }
-New-ReportRunnerBlock -Section $section -Name "Manual Block 2" -Description "Manual Block 2 description" -Data @{C=4} -Script {
+New-ReportRunnerBlock -Section $section -Id "example.manual.second" -Name "Manual Block 2" -Description "Manual Block 2 description" -Data @{C=4} -Script {
     $data = $_
 
     Write-Information "Manual Block 1 Data:"
     $data | ConvertTo-Json
     $data.GetEnumerator() | ConvertTo-ReportRunnerFormatTable
+
+    $testNum1 = 6
+    $testNum1 = Get-ReportRunnerDataProperty -Data $data -Property TestNum1 -DefaultValue $null
+    Write-Information "TestNum1: $testNum1"
+
+    $testNum2 = Get-ReportRunnerDataProperty -Data $data -Property TestNum2
+    Write-Information "TestNum2: $testNum2"
+}
+
+Update-ReportRunnerBlockData -Section $section -Id "example.manual.second" -Data @{
+    C = 5
 }
 
 Invoke-ReportRunnerContext -Context $context
-Format-ReportRunnerContextAsHtml -Context $context
+Format-ReportRunnerContextAsHtml -Context $context | Out-String | Out-File Report.html
+Format-ReportRunnerContextAsHtml -Context $context -SummaryOnly | Out-String | Out-File Summary.html
