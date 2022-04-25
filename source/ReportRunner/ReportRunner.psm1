@@ -736,7 +736,10 @@ Function Get-ReportRunnerDataProperty
     {
         if ($Data.Keys -contains $Property)
         {
-            $Data[$Property]
+            $value = $Data[$Property]
+            $value
+
+            Write-Information ("Using supplied value for property {0}: {1}" -f $Property, [string]$value)
             return
         }
 

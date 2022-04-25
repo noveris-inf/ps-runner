@@ -56,6 +56,9 @@ New-ReportRunnerBlock -Section $section -Id "example.manual.second" -Name "Manua
     $testNum1 = Get-ReportRunnerDataProperty -Data $data -Property TestNum1 -DefaultValue $null
     Write-Information "TestNum1: $testNum1"
 
+    $incoming = Get-ReportRunnerDataProperty -Data $data -Property C -DefaultValue $null
+    Write-Information "C: $incoming"
+
     $testNum2 = Get-ReportRunnerDataProperty -Data $data -Property TestNum2
     Write-Information "TestNum2: $testNum2"
 }
