@@ -537,6 +537,7 @@ Function Format-ReportRunnerContextAsHtml
                 "<h4>Notices</h4>"
 
                 $notices |
+                    Sort-Object -Property Status -Descending |
                     Format-ReportRunnerNotice -IncludeLinks |
                     ConvertTo-Html -As Table -Fragment |
                     Update-ReportRunnerNoticeCellClass |
@@ -559,8 +560,20 @@ Function Format-ReportRunnerContextAsHtml
 
         $allNotices.Keys | ForEach-Object {
             $key = $_
-            $allNotices[$key] | Format-ReportRunnerNotice -SectionName $key -IncludeLinks:(!$SummaryOnly)
-        } | ConvertTo-Html -As Table -Fragment | Update-ReportRunnerNoticeCellClass | Format-ReportRunnerDecodeHtml
+            $allNotices[$key] | ForEach-Object {
+                [PSCustomObject]@{
+                    Section = $key
+                    Status = [int]($_.Status)
+                    Notice = $_
+                }
+            }
+        } | Sort-Object -Property Status -Descending |
+            ForEach-Object {
+                $_.Notice | Format-ReportRunnerNotice -SectionName $_.Section -IncludeLinks:(!$SummaryOnly)
+            } |
+            ConvertTo-Html -As Table -Fragment |
+            Update-ReportRunnerNoticeCellClass |
+            Format-ReportRunnerDecodeHtml
 
         "</div></div>"
 

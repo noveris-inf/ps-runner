@@ -38,6 +38,8 @@ New-ReportRunnerBlock -Section $section -Id "example.manual.first" -Name "Manual
     Write-Information "Manual Block 1 Data:"
     $data | ConvertTo-Json
     $data.GetEnumerator() | ConvertTo-ReportRunnerFormatTable
+
+    New-ReportRunnerNotice -Status Info "manual block 1 info notice"
 }
 
 # Create a report runner section, with optional data
@@ -61,6 +63,8 @@ New-ReportRunnerBlock -Section $section -Id "example.manual.second" -Name "Manua
 
     $testNum2 = Get-ReportRunnerDataProperty -Data $data -Property TestNum2
     Write-Information "TestNum2: $testNum2"
+
+    New-ReportRunnerNotice -Status Info "manual block 2 info notice"
 }
 
 Update-ReportRunnerBlockData -Section $section -Id "example.manual.second" -Data @{
