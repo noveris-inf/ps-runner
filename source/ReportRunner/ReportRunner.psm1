@@ -689,6 +689,7 @@ Function Format-ReportRunnerDecodeHtml
 #>
 Function Update-ReportRunnerBlockData
 {
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '')]
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
