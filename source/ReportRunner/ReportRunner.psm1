@@ -34,6 +34,7 @@ Class ReportRunnerSection
     [string]$Description
     [HashTable]$Data
     [System.Collections.Generic.Dictionary[string, ReportRunnerBlock]]$Blocks
+    [Guid]$Guid
 
     ReportRunnerSection([string]$name, [string]$description, [HashTable]$data)
     {
@@ -41,6 +42,7 @@ Class ReportRunnerSection
         $this.Description = $description
         $this.Data = $data.Clone()
         $this.Blocks = New-Object 'System.Collections.Generic.Dictionary[string, ReportRunnerBlock]'
+        $this.Guid = [Guid]::NewGuid()
     }
 }
 
@@ -52,6 +54,7 @@ class ReportRunnerBlock
     [HashTable]$Data
     [ScriptBlock]$Script
     [System.Collections.Generic.LinkedList[PSObject]]$Content
+    [Guid]$Guid
 
     ReportRunnerBlock([string]$id, [string]$name, [string]$description, [HashTable]$data, [ScriptBlock]$script)
     {
@@ -61,6 +64,7 @@ class ReportRunnerBlock
         $this.Content = New-Object 'System.Collections.Generic.LinkedList[PSObject]'
         $this.Data = $data.Clone()
         $this.Script = $script
+        $this.Guid = [Guid]::NewGuid()
     }
 }
 
@@ -351,7 +355,18 @@ Function Invoke-ReportRunnerContext
                     } catch {
                         New-ReportRunnerNotice -Status InternalError -Description "Error running script: $_"
                     }
-                } *>&1 | ForEach-Object { $content.Add($_) }
+                } *>&1 | ForEach-Object {
+
+                    # Add the source block guid, if it is a notice
+                    if ([ReportRunnerNotice].IsAssignableFrom($_.GetType()))
+                    {
+                        [ReportRunnerNotice]$notice = $_
+                        $notice.SourceBlock = [string]($block.Guid)
+                    }
+
+                    # Add the content to the list for this block
+                    $content.Add($_)
+                }
 
                 # Save the content back to the block
                 $block.Content = $content
@@ -427,15 +442,22 @@ Function Format-ReportRunnerContextAsHtml
         "  font-family: Courier New, monospace;"
         "  white-space: pre"
         "}"
+        ".row {"
+        "  display: flex;"
+        "}"
+        ".column {"
+        "  flex: 50%;"
+        "}"
         "</style>"
         "</head><body>"
+        "<div id=`"top`"></div>"
         "<h2>$title</h2>"
 
         $sectionList = New-Object 'System.Collections.Generic.LinkedList[PSCustomObject]'
         $sectionContent = $Context.Sections | ForEach-Object {
             $section = $_
             $notices = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
-            $sectionGuid = [Guid]::NewGuid()
+            $sectionGuid = $section.Guid
 
             # Add the section to the section list
             $sectionList.Add([PSCustomObject]@{
@@ -445,18 +467,20 @@ Function Format-ReportRunnerContextAsHtml
 
             # Format section start
             "<div class=`"section`" id=`"$sectionGuid`">"
-            ("<h3>Section: {0}</h3>" -f $section.Name)
+            ("<div class=`"row`"><div class=`"column`"><h3>Section: {0}</h3></div><div class=`"column`" align=`"right`"><a href=`"#top`">Back to top</a></div></div>" -f $section.Name)
             ("<i>{0}</i><br><br>" -f $section.Description)
 
             # Iterate through block content
             $content = $section.Blocks.Keys | ForEach-Object {
                 $blockId = $_
                 $block = $section.Blocks[$blockId]
-                $blockGuid = [Guid]::NewGuid()
+                $blockGuid = $block.Guid
 
                 # Format block start
                 "<div class=`"block`" id=`"$blockGuid`">"
-                ("<h4>{0} ({1})</h4><i>{2}</i><br><br>" -f $block.Name, $block.Id, $block.Description)
+                ("<div class=`"row`"><div class=`"column`"><h4>{0} ({1})</h4></div>" -f $block.Name, $block.Id)
+                "<div class=`"column`" align=`"right`"><a href=`"#$sectionGuid`">Back to section</a></div></div>"
+                ("<i>{0}</i><br><br>" -f $block.Description)
 
                 # Format block content
                 $blockContent = $block.Content | ForEach-Object {
@@ -466,7 +490,6 @@ Function Format-ReportRunnerContextAsHtml
                     if ([ReportRunnerNotice].IsAssignableFrom($msg.GetType()))
                     {
                         [ReportRunnerNotice]$notice = $_
-                        $notice.SourceBlock = $blockGuid
                         $notices.Add($notice) | Out-Null
 
                         if ($allNotices.Keys -notcontains $section.Name)
