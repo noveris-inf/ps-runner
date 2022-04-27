@@ -605,12 +605,29 @@ Function Format-ReportRunnerContextAsHtml
         {
             # Display section table of contents
             "<div class=`"section`">"
-            "<h3>Sections</h3>"
-            $sectionList | ForEach-Object {
-                ("<a href=`"#{0}`">{1}</a><br>" -f $_.Id, $_.Name)
-            }
-            "</div>"
+            "<h3>Index</h3>"
 
+            $Context.Sections | ForEach-Object {
+                $section = $_
+                $sectionGuid = $section.Guid
+
+                # Display section heading
+                ("<a href=`"#{0}`">{1}</a><br>" -f $sectionGuid, $section.Name)
+                "<ul>"
+
+                $section.Blocks.Keys | ForEach-Object {
+                    $blockId = $_
+                    $block = $section.Blocks[$blockId]
+                    $blockGuid = $block.Guid
+
+                    # Display block link
+                    ("<a href=`"#{0}`">{1}</a><br>" -f $blockGuid, $block.Name)
+                }
+
+                "</ul>"
+            }
+
+            "</div>"
 
             # Display all section content
             $sectionContent | ForEach-Object { $_ }
