@@ -448,6 +448,9 @@ Function Format-ReportRunnerContextAsHtml
         ".column {"
         "  flex: 50%;"
         "}"
+        ".rrformattable {"
+        "  white-space: normal;"
+        "}"
         "</style>"
         "</head><body>"
         "<div id=`"top`"></div>"
@@ -526,8 +529,10 @@ Function Format-ReportRunnerContextAsHtml
 
                     if ([ReportRunnerFormatTable].IsAssignableFrom($msg.GetType()))
                     {
-                        $msg = $msg.Content | ConvertTo-Html -As Table -Fragment | Out-String
-                        $msg = $msg.Replace([Environment]::Newline, "")
+                        $content = "<div class=`"rrformattable`">"
+                        $content += $msg.Content | ConvertTo-Html -As Table -Fragment | Out-String
+                        $content += "</div>"
+                        $msg = $content.Replace([Environment]::Newline, "")
                     }
 
                     if ([string].IsAssignableFrom($msg.GetType()))

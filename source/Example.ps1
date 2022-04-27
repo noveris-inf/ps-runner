@@ -44,6 +44,20 @@ New-ReportRunnerBlock -Section $section -Id "example.manual.first" -Name "Manual
     $testdata = Get-ReportRunnerDataProperty -Data $data -Property LargeString1 -DefaultValue ([string](1..28))
     $testdata = Get-ReportRunnerDataProperty -Data $data -Property LargeString2 -DefaultValue ([string](1..100))
 
+    $longValue = [string](1..20)
+    $item = [PSCustomObject]@{
+        Property1 = $longValue
+        Property2 = $longValue
+        Property3 = $longValue
+        Property4 = $longValue
+        Property5 = $longValue
+        Property6 = $longValue
+        Property7 = $longValue
+        Property8 = $longValue
+    }
+
+    @($item) | ConvertTo-ReportRunnerFormatTable
+
     New-ReportRunnerNotice -Status Info "manual block 1 info notice"
 }
 
