@@ -39,6 +39,11 @@ New-ReportRunnerBlock -Section $section -Id "example.manual.first" -Name "Manual
     $data | ConvertTo-Json
     $data.GetEnumerator() | ConvertTo-ReportRunnerFormatTable
 
+    $testdata = Get-ReportRunnerDataProperty -Data $data -Property LargeCollection -DefaultValue (1..20)
+    $testdata = Get-ReportRunnerDataProperty -Data $data -Property LargeString1 -DefaultValue ([string](1..20))
+    $testdata = Get-ReportRunnerDataProperty -Data $data -Property LargeString1 -DefaultValue ([string](1..28))
+    $testdata = Get-ReportRunnerDataProperty -Data $data -Property LargeString2 -DefaultValue ([string](1..100))
+
     New-ReportRunnerNotice -Status Info "manual block 1 info notice"
 }
 

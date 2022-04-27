@@ -748,28 +748,47 @@ Function Get-ReportRunnerDataProperty
 
     process
     {
+        $source = ""
+        $value = $null
+
+        # Determine the source of the property value
         if ($Data.Keys -contains $Property)
         {
             $value = $Data[$Property]
-            $value
-
-            Write-Information ("Using supplied value for property {0}: {1}" -f $Property, [string]$value)
-            return
-        }
-
-        if ($PSBoundParameters.Keys -contains "DefaultValue")
+            $source = "supplied"
+        } elseif ($PSBoundParameters.Keys -contains "DefaultValue")
         {
-            $valueStr = $DefaultValue
-            if ($null -eq $DefaultValue)
-            {
-                $valueStr = "(null)"
-            }
-            Write-Information ("Using default value for property {0}: {1}" -f $Property, $valueStr)
-
-            $DefaultValue
-            return
+            $value = $DefaultValue
+            $source = "default"
+        } else {
+            Write-Error "Missing property $Property in HashTable data and no default value"
         }
 
-        Write-Error "Missing property $Property in HashTable data"
+        $valueStr = $value
+
+        # Make a null value readable
+        if ($null -eq $valueStr)
+        {
+            $valueStr = "(null)"
+        } else {
+            $valueStr = [string]$value
+        }
+
+        # Put the string on a new line if it's >50 chars
+        if ($valueStr.Length -gt 50)
+        {
+            # Truncate the string if it's greater than 80 chars
+            if ($valueStr.Length -gt 80)
+            {
+                $valueStr = $valueStr.Substring(0, 80) + " ..."
+            }
+
+            Write-Information ("Using {0} value for property {1}:" -f $source, $Property)
+            Write-Information $valueStr
+        } else {
+            Write-Information ("Using {0} value for property {1}: {2}" -f $source, $Property, $valueStr)
+        }
+
+        $value
     }
 }
