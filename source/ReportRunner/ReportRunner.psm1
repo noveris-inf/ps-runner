@@ -482,7 +482,7 @@ Function Format-ReportRunnerContextAsHtml
                 # Format block start
                 "<div class=`"block`" id=`"$blockGuid`">"
                 ("<div class=`"row`"><div class=`"column`"><h4>{0} ({1})</h4></div>" -f $block.Name, $block.Id)
-                "<div class=`"column`" align=`"right`"><a href=`"#$sectionGuid`">Back to section</a></div></div>"
+                "<div class=`"column`" align=`"right`"><a href=`"#$sectionGuid`">Back to section</a> | <a href=`"#top`">Back to top</a></div></div>"
                 ("<i>{0}</i><br><br>" -f $block.Description)
 
                 # Format block content
@@ -595,7 +595,7 @@ Function Format-ReportRunnerContextAsHtml
                     Notice = $_
                 }
             }
-        } | Sort-Object -Property Status -Descending |
+        } | Sort-Object -Property Status,Section -Descending |
             ForEach-Object {
                 $_.Notice | Format-ReportRunnerNotice -SectionName $_.Section -IncludeLinks:(!$SummaryOnly)
             } |
