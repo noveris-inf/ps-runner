@@ -530,7 +530,9 @@ Function Format-ReportRunnerContextAsHtml
                     if ([ReportRunnerFormatTable].IsAssignableFrom($msg.GetType()))
                     {
                         $content = "<div class=`"rrformattable`">"
-                        $content += $msg.Content | ConvertTo-Html -As Table -Fragment | Out-String
+                        $content += $msg.Content | ConvertTo-Html -As Table -Fragment | ForEach-Object {
+                            $_.Replace([Environment]::Newline, "<br>")
+                        } | Out-String
                         $content += "</div>"
                         $msg = $content.Replace([Environment]::Newline, "")
                     }
