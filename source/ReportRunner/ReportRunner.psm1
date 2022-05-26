@@ -653,12 +653,18 @@ Function Update-ReportRunnerNoticeCellClass
     param(
         [Parameter(Mandatory=$true,ValueFromPipeline)]
         [AllowNull()]
+        [AllowEmptyString()]
         [string]$Content
     )
 
     process
     {
         $val = $Content
+
+        if ($null -eq $val)
+        {
+            $val = ""
+        }
 
         $val = $val.Replace("<td>Warning</td>", "<td class=`"warningCell`">Warning</td>")
         $val = $val.Replace("<td>Error</td>", "<td class=`"errorCell`">Error</td>")
@@ -716,6 +722,7 @@ Function Format-ReportRunnerDecodeHtml
     param(
         [Parameter(Mandatory=$true,ValueFromPipeline)]
         [AllowNull()]
+        [AllowEmptyString()]
         [string]$Content
     )
 
