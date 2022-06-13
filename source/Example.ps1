@@ -21,6 +21,11 @@ Add-ReportRunnerLibraryBlock -Id "example.script.name" -Name "Example Script" -D
     Write-Information "Example Script Data (New-ReportRunnerFormatTable):"
     $data.GetEnumerator() | ConvertTo-ReportRunnerFormatTable
 
+    [PSCustomObject]@{
+        First = (@("test", "other") | ForEach-Object { $_ } | Out-String)
+        Second = "Second"
+    } | ConvertTo-ReportRunnerFormatTable
+
     New-ReportRunnerNotice -Status Warning -Description "example script warning"
 }
 
@@ -28,7 +33,7 @@ Add-ReportRunnerLibraryBlock -Id "example.script.name" -Name "Example Script" -D
 $context = New-ReportRunnerContext -Title "Example Report" -Data @{ A=1; B=1; C=1 }
 
 # Create a report runner section, with optional data
-$section = New-ReportRunnerSection -Context $context -Name "Section 1" -Description "Section 1 description" -Data @{ B=2; C=2 }
+$section = New-ReportRunnerSection -Context $context -Name "Section b1" -Description "Section 1 description" -Data @{ B=2; C=2 }
 
 # Add some blocks to this section
 New-ReportRunnerBlock -Section $section -LibraryFilter "^example\.script\." -Data @{ C=3 }
@@ -57,6 +62,23 @@ New-ReportRunnerBlock -Section $section -Id "example.manual.first" -Name "Manual
     }
 
     @($item) | ConvertTo-ReportRunnerFormatTable
+
+    "Default Ignore"
+    "<a href=`"https://www.google.com.au`">Google</a>"
+    @(@{ Url = "<a href=`"https://www.google.com.au`">Google</a>" }) |
+        ConvertTo-Html -As Table -Fragment
+
+    "Encode Status Encode"
+    Set-ReportRunnerBlockSetting -EncodeStatus Encode
+    "<a href=`"https://www.google.com.au`">Google</a>"
+    @(@{ Url = "<a href=`"https://www.google.com.au`">Google</a>" }) |
+        ConvertTo-Html -As Table -Fragment
+
+    "Encode Status Decode"
+    Set-ReportRunnerBlockSetting -EncodeStatus Decode
+    "<a href=`"https://www.google.com.au`">Google</a>"
+    @(@{ Url = "<a href=`"https://www.google.com.au`">Google</a>" }) |
+        ConvertTo-Html -As Table -Fragment
 
     New-ReportRunnerNotice -Status Info "manual block 1 info notice"
 }
