@@ -63,24 +63,132 @@ New-ReportRunnerBlock -Section $section -Id "example.manual.first" -Name "Manual
 
     @($item) | ConvertTo-ReportRunnerFormatTable
 
-    "Default Ignore"
-    "<a href=`"https://www.google.com.au`">Google</a>"
-    @(@{ Url = "<a href=`"https://www.google.com.au`">Google</a>" }) |
-        ConvertTo-Html -As Table -Fragment
-
-    "Encode Status Encode"
-    Set-ReportRunnerBlockSetting -EncodeStatus Encode
-    "<a href=`"https://www.google.com.au`">Google</a>"
-    @(@{ Url = "<a href=`"https://www.google.com.au`">Google</a>" }) |
-        ConvertTo-Html -As Table -Fragment
-
-    "Encode Status Decode"
-    Set-ReportRunnerBlockSetting -EncodeStatus Decode
-    "<a href=`"https://www.google.com.au`">Google</a>"
-    @(@{ Url = "<a href=`"https://www.google.com.au`">Google</a>" }) |
-        ConvertTo-Html -As Table -Fragment
-
     New-ReportRunnerNotice -Status Info "manual block 1 info notice"
+}
+
+New-ReportRunnerBlock -Section $section -Id "example.coding.ignore" -Name "Html Coding - Ignore" -Description "Html Coding - Ignore" -Script {
+    $data = $_
+
+    Set-ReportRunnerBlockSetting -EncodeStatus Ignore
+
+    "<a href=`"https://www.google.com.au`">Google</a>"
+
+    $table = @(
+        [PSCustomObject]@{ Name = "Google"; Url = "<a href=`"https://www.google.com.au`">Google</a>" },
+        [PSCustomObject]@{ Name = "Microsoft"; Url = "<a href=`"https://www.microsoft.com`">Microsoft</a>" }
+    )
+
+    Write-Information "Format-Table"
+    $table | Format-Table | Out-String
+
+    Write-Information "ConvertTo-Html (as table)"
+    $table | ConvertTo-html -As Table -Fragment
+
+    Write-Information "ReportRunnerTable"
+    $table | ConvertTo-ReportRunnerFormatTable
+
+    Write-Information "Notice"
+    New-ReportRunnerNotice -Status Info -Description "Link to <a href=`"https://www.microsoft.com`">Microsoft</a>"
+}
+
+New-ReportRunnerBlock -Section $section -Id "example.coding.encode" -Name "Html Coding - Encode" -Description "Html Coding - Encode" -Script {
+    $data = $_
+
+    Set-ReportRunnerBlockSetting -EncodeStatus Encode
+
+    "<a href=`"https://www.google.com.au`">Google</a>"
+
+    $table = @(
+        [PSCustomObject]@{ Name = "Google"; Url = "<a href=`"https://www.google.com.au`">Google</a>" },
+        [PSCustomObject]@{ Name = "Microsoft"; Url = "<a href=`"https://www.microsoft.com`">Microsoft</a>" }
+    )
+
+    Write-Information "Format-Table"
+    $table | Format-Table | Out-String
+
+    Write-Information "ConvertTo-Html (as table)"
+    $table | ConvertTo-html -As Table -Fragment
+
+    Write-Information "ReportRunnerTable"
+    $table | ConvertTo-ReportRunnerFormatTable
+
+    Write-Information "Notice"
+    New-ReportRunnerNotice -Status Info -Description "Link to <a href=`"https://www.microsoft.com`">Microsoft</a>"
+}
+
+New-ReportRunnerBlock -Section $section -Id "example.coding.decode" -Name "Html Coding - Decode" -Description "Html Coding - Decode" -Script {
+    $data = $_
+
+    Set-ReportRunnerBlockSetting -EncodeStatus Decode
+
+    "<a href=`"https://www.google.com.au`">Google</a>"
+
+    $table = @(
+        [PSCustomObject]@{ Name = "Google"; Url = "<a href=`"https://www.google.com.au`">Google</a>" },
+        [PSCustomObject]@{ Name = "Microsoft"; Url = "<a href=`"https://www.microsoft.com`">Microsoft</a>" }
+    )
+
+    Write-Information "Format-Table"
+    $table | Format-Table | Out-String
+
+    Write-Information "ConvertTo-Html (as table)"
+    $table | ConvertTo-html -As Table -Fragment
+
+    Write-Information "ReportRunnerTable"
+    $table | ConvertTo-ReportRunnerFormatTable
+
+    Write-Information "Notice"
+    New-ReportRunnerNotice -Status Info -Description "Link to <a href=`"https://www.microsoft.com`">Microsoft</a>"
+}
+
+New-ReportRunnerBlock -Section $section -Id "example.block.settings" -Name "Block Settings" -Description "Block Settings" -Script {
+    $data = $_
+
+    "<a href=`"https://www.microsoft.com`">Should be a link</a>"
+    "<a href=`"https://www.microsoft.com`">Should not be a link</a>" | Set-ReportRunnerBlockSetting -EncodeStatus Encode
+    "<a href=`"https://www.microsoft.com`">Should be a link</a>"
+
+    Set-ReportRunnerBlockSetting -EncodeStatus Encode
+    "<a href=`"https://www.microsoft.com`">Should not be a link</a>"
+
+    Set-ReportRunnerBlockSetting -EncodeStatus Ignore
+    "<a href=`"https://www.microsoft.com`">Should be a link</a>"
+
+    Set-ReportRunnerBlockSetting -EncodeStatus Ignore
+    "<a href=`"https://www.microsoft.com`">Should be a link</a>"
+
+    & {
+        "<a href=`"https://www.microsoft.com`">Should not be a link</a>"
+        "<a href=`"https://www.microsoft.com`">Also should not be a link</a>"
+    } | Set-ReportRunnerBlockSetting -EncodeStatus Encode
+    "<a href=`"https://www.microsoft.com`">Should be a link</a>"
+
+    $table = @(
+        [PSCustomObject]@{ Name = "Google"; Url = "<a href=`"https://www.google.com.au`">Google</a>" },
+        [PSCustomObject]@{ Name = "Microsoft"; Url = "<a href=`"https://www.microsoft.com`">Microsoft</a>" }
+    )
+
+    Set-ReportRunnerBlockSetting -EncodeStatus Encode -FormatAll $true
+    Write-Information "This shouldn't display properly"
+    $table | Format-Table
+
+    & {
+        Write-Information "This should display properly"
+        $table | Format-Table
+    } | Set-ReportRunnerBlockSetting -EncodeStatus Ignore
+
+    & {
+        Write-Information "This should also display properly"
+        $table | Format-Table
+    } | Set-ReportRunnerBlockSetting -FormatAll $false
+
+    & {
+        Write-Information "This should also display properly and encode the table content"
+        $table | Format-Table | Out-String
+    } | Set-ReportRunnerBlockSetting -FormatAll $false
+
+    Write-Information "This should still not display properly"
+    $table | Format-Table
 }
 
 # Create a report runner section, with optional data
