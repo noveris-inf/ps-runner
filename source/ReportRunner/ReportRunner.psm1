@@ -78,6 +78,51 @@ Class ReportRunnerFormatTable
     }
 }
 
+enum ReportRunnerEncodeStatus
+{
+    Ignore = 0
+    Encode
+    Decode
+}
+
+Class ReportRunnerBlockSettings
+{
+    [bool]$Merge
+    [Nullable[ReportRunnerEncodeStatus]]$EncodeStatus
+    [Nullable[bool]]$FormatAll
+
+    ReportRunnerBlockSettings()
+    {
+        $this.Merge = $true
+    }
+
+    ReportRunnerBlockSettings([ReportRunnerBlockSettings] $otherSettings)
+    {
+        $this.Copy($otherSettings)
+    }
+
+    Copy([ReportRunnerBlockSettings] $otherSettings)
+    {
+        if ($null -ne $otherSettings.EncodeStatus)
+        {
+            $this.EncodeStatus = $otherSettings.EncodeStatus
+        }
+
+        if ($null -ne $otherSettings.FormatAll)
+        {
+            $this.FormatAll = $otherSettings.FormatAll
+        }
+    }
+}
+
+
+Class ReportRunnerBlockSettingsPop
+{
+    ReportRunnerBlockSettingsPop()
+    {
+    }
+}
+
 enum ReportRunnerStatus
 {
     None = 0
@@ -388,9 +433,6 @@ Function Format-ReportRunnerContextAsHtml
         [ReportRunnerContext]$Context,
 
         [Parameter(Mandatory=$false)]
-        [bool]$DecodeHtml = $true,
-
-        [Parameter(Mandatory=$false)]
         [switch]$SummaryOnly = $false
     )
 
@@ -485,69 +527,132 @@ Function Format-ReportRunnerContextAsHtml
                 "<div class=`"column`" align=`"right`"><a href=`"#$sectionGuid`">Back to section</a> | <a href=`"#top`">Back to top</a></div></div>"
                 ("<i>{0}</i><br><br>" -f $block.Description)
 
+                # Default block settings
+                $blockSettings = New-Object 'System.Collections.Generic.List[ReportRunnerBlockSettings]'
+                $defaultSetting = [ReportRunnerBlockSettings]::New()
+
+                $defaultSetting.EncodeStatus = [ReportRunnerEncodeStatus]::Ignore
+                $defaultSetting.FormatAll = $false
+
+                $blockSettings.Add($defaultSetting)
+
                 # Format block content
                 $blockContent = $block.Content | ForEach-Object {
                     $msg = $_
 
                     # Check if it is a string or status object
-                    if ([ReportRunnerNotice].IsAssignableFrom($msg.GetType()))
+                    switch ($msg.GetType().FullName)
                     {
-                        [ReportRunnerNotice]$notice = $_
-                        $notices.Add($notice) | Out-Null
-
-                        if ($allNotices.Keys -notcontains $section.Name)
+                        "ReportRunnerBlockSettings"
                         {
-                            $allNotices[$section.Name] = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
+                            # Create a new settings object based on the current one
+                            $newSettings = $null
+
+                            if ($msg.Merge)
+                            {
+                                # Copy the current block settings
+                                $newSettings = [ReportRunnerBlockSettings]::New($blockSettings[0])
+
+                                # Add the incoming settings to the settings object
+                                $newSettings.Copy([ReportRunnerBlockSettings]$msg)
+                            } else {
+                                # Create a copy of the incoming object
+                                $newSettings = [ReportRunnerBlockSettings]::New($msg)
+                            }
+
+                            $blockSettings.Insert(0, $newSettings)
                         }
 
-                        $allNotices[$section.Name].Add($notice) | Out-Null
-
-                        # Alter message to notice string representation
-                        $msg = $notice.ToString()
-                    }
-
-                    if ([System.Management.Automation.InformationRecord].IsAssignableFrom($_.GetType()))
-                    {
-                        $msg = ("INFO: {0}" -f $_.ToString())
-                    }
-                    elseif ([System.Management.Automation.VerboseRecord].IsAssignableFrom($_.GetType()))
-                    {
-                        $msg = ("VERBOSE: {0}" -f $_.ToString())
-                    }
-                    elseif ([System.Management.Automation.ErrorRecord].IsAssignableFrom($_.GetType()))
-                    {
-                        $msg = ("ERROR: {0}" -f $_.ToString())
-                    }
-                    elseif ([System.Management.Automation.DebugRecord].IsAssignableFrom($_.GetType()))
-                    {
-                        $msg = ("DEBUG: {0}" -f $_.ToString())
-                    }
-                    elseif ([System.Management.Automation.WarningRecord].IsAssignableFrom($_.GetType()))
-                    {
-                        $msg = ("WARNING: {0}" -f $_.ToString())
-                    }
-
-                    if ([ReportRunnerFormatTable].IsAssignableFrom($msg.GetType()))
-                    {
-                        $content = "<div class=`"rrformattable`">"
-                        $content += $msg.Content | ConvertTo-Html -As Table -Fragment | ForEach-Object {
-                            $_.Replace([Environment]::Newline, "<br>")
-                        } | Out-String
-                        $content += "</div>"
-                        $msg = $content.Replace([Environment]::Newline, "")
-                    }
-
-                    if ([string].IsAssignableFrom($msg.GetType()))
-                    {
-                        # $msg += "<br>"
-                        if ($DecodeHtml)
+                        "ReportRunnerBlockSettingsPop"
                         {
-                            $msg = Format-ReportRunnerDecodeHtml -Content $msg
+                            # Remove settings, but don't remove the last one
+                            if ($blockSettings.Count -gt 1)
+                            {
+                                $blockSettings.RemoveAt(0)
+                            } else {
+                                Write-Warning "Settings pop, but no settings to pop"
+                            }
+                        }
+
+                        "ReportRunnerNotice" {
+                            [ReportRunnerNotice]$notice = $msg
+                            $notices.Add($notice) | Out-Null
+
+                            if ($allNotices.Keys -notcontains $section.Name)
+                            {
+                                $allNotices[$section.Name] = New-Object 'System.Collections.Generic.LinkedList[ReportRunnerNotice]'
+                            }
+
+                            $allNotices[$section.Name].Add($notice) | Out-Null
+
+                            # Update the description based on this blocks encoding
+                            $notice.Description = $notice.Description |
+                                Format-ReportRunnerHtmlCoding -Status $blockSettings[0].EncodeStatus
+
+                            $notice.ToString()
+                        }
+
+                        "System.Management.Automation.InformationRecord" {
+                            ("INFO: {0}" -f $msg.ToString()) |
+                                Format-ReportRunnerHtmlCoding -Status $blockSettings[0].EncodeStatus
+                        }
+
+                        "System.Management.Automation.VerboseRecord" {
+                            ("VERBOSE: {0}" -f $msg.ToString()) |
+                                Format-ReportRunnerHtmlCoding -Status $blockSettings[0].EncodeStatus
+                        }
+
+                        "System.Management.Automation.ErrorRecord" {
+                            ("ERROR: {0}" -f $msg.ToString()) |
+                                Format-ReportRunnerHtmlCoding -Status $blockSettings[0].EncodeStatus
+                        }
+
+                        "System.Management.Automation.DebugRecord" {
+                            ("DEBUG: {0}" -f $msg.ToString()) |
+                                Format-ReportRunnerHtmlCoding -Status $blockSettings[0].EncodeStatus
+                        }
+
+                        "System.Management.Automation.WarningRecord" {
+                            ("WARNING: {0}" -f $msg.ToString()) |
+                                Format-ReportRunnerHtmlCoding -Status $blockSettings[0].EncodeStatus
+                        }
+
+                        "ReportRunnerFormatTable" {
+                            $content = "<div class=`"rrformattable`">"
+                            $content += $msg.Content | ConvertTo-Html -As Table -Fragment | ForEach-Object {
+                                $_.Replace([Environment]::Newline, "<br>")
+                            } | Out-String
+                            $content += "</div>"
+                            $content = $content.Replace([Environment]::Newline, "")
+
+                            # Only do decoding for ReportRunner table
+                            # Encoding doesn't make sense here
+                            if ($blockSettings[0].EncodeStatus -eq "Decode")
+                            {
+                                $content = $content |
+                                    Format-ReportRunnerHtmlCoding -Status $blockSettings[0].EncodeStatus
+                            }
+
+                            $content
+                        }
+
+                        "System.String" {
+                            $msg | Format-ReportRunnerHtmlCoding -Status $blockSettings[0].EncodeStatus
+                        }
+
+                        default {
+                            if ($null -ne $msg)
+                            {
+                                if (!$blockSettings[0].FormatAll -or $blockSettings[0].EncodeStatus -eq "Ignore")
+                                {
+                                    # If we're not formatting all or Encode is ignore, then don't do any conversion or encode/decode
+                                    $msg
+                                } else {
+                                    [string]$msg | Format-ReportRunnerHtmlCoding -Status $blockSettings[0].EncodeStatus
+                                }
+                            }
                         }
                     }
-
-                    # Pass message on in the pipeline
-                    $msg
                 } | Out-String
 
                 # Replace newlines with breaks and output
@@ -716,6 +821,43 @@ Function Format-ReportRunnerNotice
     }
 }
 
+Function Format-ReportRunnerHtmlCoding
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateNotNull()]
+        [ReportRunnerEncodeStatus]$Status,
+
+        [Parameter(Mandatory=$true,ValueFromPipeline)]
+        [AllowNull()]
+        [string]$Content
+    )
+
+    process
+    {
+        if ([string]::IsNullOrEmpty($Content))
+        {
+            return
+        }
+
+        switch ($Status)
+        {
+            "Decode" {
+                [System.Web.HttpUtility]::HtmlDecode($Content)
+            }
+
+            "Encode" {
+                [System.Web.HttpUtility]::HtmlEncode($Content)
+            }
+
+            default {
+                $Content
+            }
+        }
+    }
+}
+
 Function Format-ReportRunnerDecodeHtml
 {
     [CmdletBinding()]
@@ -778,6 +920,71 @@ Function Update-ReportRunnerBlockData
             $Data.Keys | ForEach-Object {
                 $block.Data[$_] = $Data[$_]
             }
+        }
+    }
+}
+
+<#
+#>
+Function Set-ReportRunnerBlockSetting
+{
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false, ParameterSetName = "Single")]
+        [Parameter(Mandatory=$false, ParameterSetName = "Pipeline")]
+        [ValidateNotNull()]
+        [switch]$NoMerge = $false,
+
+        [Parameter(Mandatory=$false, ParameterSetName="Single")]
+        [Parameter(Mandatory=$false, ParameterSetName="Pipeline")]
+        [ValidateNotNull()]
+        [ReportRunnerEncodeStatus]$EncodeStatus,
+
+        [Parameter(Mandatory=$false, ParameterSetName="Single")]
+        [Parameter(Mandatory=$false, ParameterSetName="Pipeline")]
+        [ValidateNotNull()]
+        [bool]$FormatAll,
+
+        [Parameter(Mandatory=$true, ParameterSetName="Pipeline", ValueFromPipeline)]
+        [AllowNull()]
+        $Obj
+    )
+
+    begin
+    {
+        $setting = [ReportRunnerBlockSettings]::New()
+
+        # Whether to merge the settings with existing settings
+        $setting.Merge = !$NoMerge
+
+        # Copy encode settings
+        if ($PSBoundParameters.Keys -contains "EncodeStatus")
+        {
+            $setting.EncodeStatus = $EncodeStatus
+        }
+
+        # Copy formatall settings
+        if ($PSBoundParameters.Keys -contains "FormatAll")
+        {
+            $setting.FormatAll = $FormatAll
+        }
+
+        $setting
+    }
+
+    process
+    {
+        if ($PsCmdlet.ParameterSetName -eq "Pipeline")
+        {
+            $Obj
+        }
+    }
+
+    end
+    {
+        if ($PsCmdlet.ParameterSetName -eq "Pipeline")
+        {
+            [ReportRunnerBlockSettingsPop]::New()
         }
     }
 }
