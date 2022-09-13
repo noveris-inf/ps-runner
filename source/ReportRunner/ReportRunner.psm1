@@ -831,6 +831,7 @@ Function Format-ReportRunnerHtmlCoding
 
         [Parameter(Mandatory=$true,ValueFromPipeline)]
         [AllowNull()]
+        [AllowEmptyString()]
         [string]$Content
     )
 
