@@ -37,7 +37,7 @@ $section = New-ReportRunnerSection -Context $context -Name "Section b1" -Descrip
 
 # Add some blocks to this section
 New-ReportRunnerBlock -Section $section -LibraryFilter "^example\.script\." -Data @{ C=3 }
-New-ReportRunnerBlock -Section $section -Id "example.manual.first" -Name "Manual Block 1" -Description "Manual Block 1 description" -Data @{C=4} -Script {
+New-ReportRunnerBlock -Section $section -Id "example01.manual2.first" -Name "Manual Block 1" -Description "Manual Block 1 description" -Data @{C=4} -Script {
     $data = $_
 
     Write-Information "Manual Block 1 Data:"

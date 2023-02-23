@@ -233,7 +233,7 @@ Function New-ReportRunnerBlock
         [string]$LibraryFilter,
 
         [Parameter(Mandatory=$true, ParameterSetName="NewBlock")]
-        [ValidatePattern("^[a-zA-Z_-]*\.[a-zA-Z_-]*\.[a-zA-Z_-]*$")]
+        [ValidatePattern("^[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*$")]
         [string]$Id,
 
         [Parameter(Mandatory=$true, ParameterSetName="NewBlock")]
@@ -341,7 +341,7 @@ Function Add-ReportRunnerLibraryBlock
     param(
         [Parameter(Mandatory=$true, HelpMessage = "Must be in module.group.id format")]
         [ValidateNotNullOrEmpty()]
-        [ValidatePattern("^[a-zA-Z_-]*\.[a-zA-Z_-]*\.[a-zA-Z_-]*$")]
+        [ValidatePattern("^[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*$")]
         [string]$Id,
 
         [Parameter(Mandatory=$true)]
@@ -894,7 +894,7 @@ Function Update-ReportRunnerBlockData
         [ReportRunnerSection]$Section,
 
         [Parameter(Mandatory=$true)]
-        [ValidatePattern("^[a-zA-Z_-]*\.[a-zA-Z_-]*\.[a-zA-Z_-]*$")]
+        [ValidatePattern("^[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*$")]
         [string]$Id,
 
         [Parameter(Mandatory=$true)]
